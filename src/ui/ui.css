@@ -1,0 +1,323 @@
+/*
+ * Diwali UI styling: the opening card, the prompt chip, the thaali strip, the pause panel, the toast and the finale
+ * greeting. Warm browns and gold only; no neon, no glassmorphism, no emoji, no arcade text.
+ * Fonts: Tiro Devanagari Hindi for the Hindi lines, Cormorant Garamond for display, Inter for controls.
+ */
+
+:root {
+  --ui-ink: #f4e6cc;
+  --ui-ink-dim: rgba(244, 230, 204, 0.72);
+  --ui-gold: #c9a24a;
+  --ui-chip: rgba(40, 24, 14, 0.78);
+  --ui-panel: rgba(34, 20, 12, 0.9);
+  --ui-hairline: rgba(201, 162, 74, 0.55);
+  --ui-serif: 'Cormorant Garamond', 'Times New Roman', serif;
+  --ui-deva: 'Tiro Devanagari Hindi', 'Noto Serif Devanagari', serif;
+  --ui-sans: 'Inter', system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --ui-ink: #f4e6cc;
+    --ui-chip: rgba(34, 20, 12, 0.8);
+    --ui-panel: rgba(28, 17, 10, 0.92);
+  }
+}
+
+:root[data-theme='dark'] {
+  --ui-ink: #f4e6cc;
+  --ui-chip: rgba(34, 20, 12, 0.8);
+  --ui-panel: rgba(28, 17, 10, 0.92);
+}
+
+/* The hidden attribute must win over the display rules below. */
+#ui [hidden] {
+  display: none !important;
+}
+
+/* Overlays are inert to the pointer unless they are buttons or the intro card. */
+#ui > * {
+  pointer-events: none;
+  font-family: var(--ui-sans);
+  color: var(--ui-ink);
+}
+
+/* ---------- Opening card ---------- */
+
+.intro {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: radial-gradient(ellipse at center, rgba(20, 12, 7, 0.55), rgba(10, 6, 3, 0.92));
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 2.5s ease;
+  text-align: center;
+}
+
+.intro.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.intro-hi {
+  font-family: var(--ui-deva);
+  font-size: clamp(30px, 6vw, 56px);
+  color: var(--ui-ink);
+}
+
+.intro-en {
+  font-family: var(--ui-serif);
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(18px, 3vw, 26px);
+  color: var(--ui-ink-dim);
+}
+
+.intro-hint {
+  margin-top: 26px;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ui-gold);
+  border-top: 1px solid var(--ui-hairline);
+  padding-top: 10px;
+}
+
+/* ---------- Prompt chip ---------- */
+
+.prompt {
+  position: fixed;
+  left: 50%;
+  bottom: 9%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(88vw, 520px);
+  padding: 8px 16px 8px 10px;
+  border-radius: 999px;
+  background: var(--ui-chip);
+  border: 1px solid var(--ui-hairline);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transition: opacity 0.12s ease;
+  opacity: 0;
+}
+
+.prompt:not(:empty) {
+  opacity: 1;
+}
+
+.prompt.is-changing {
+  opacity: 0;
+}
+
+.keycap {
+  display: inline-block;
+  min-width: 26px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--ui-hairline);
+  background: linear-gradient(#5a3b24, #3b2514);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.35);
+  font-family: var(--ui-sans);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  color: var(--ui-ink);
+}
+
+.prompt-text {
+  font-family: var(--ui-serif);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ui-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Thaali strip (bottom right) ---------- */
+
+.thaali-strip {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 60vh;
+  overflow: hidden;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--ui-chip);
+  border: 1px solid var(--ui-hairline);
+}
+
+.thaali-slot {
+  min-width: 118px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: rgba(60, 38, 22, 0.55);
+}
+
+.thaali-slot.is-selected {
+  border-color: var(--ui-gold);
+  background: rgba(96, 62, 30, 0.8);
+}
+
+.slot-hi {
+  font-family: var(--ui-deva);
+  font-size: 16px;
+  line-height: 1.3;
+  color: var(--ui-ink);
+}
+
+.slot-en {
+  font-family: var(--ui-sans);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ui-ink-dim);
+}
+
+/* ---------- Toast (top centre) ---------- */
+
+.toast {
+  position: fixed;
+  top: 9%;
+  left: 50%;
+  transform: translate(-50%, -6px);
+  padding: 7px 16px;
+  border-radius: 8px;
+  background: var(--ui-chip);
+  border: 1px solid var(--ui-hairline);
+  font-family: var(--ui-sans);
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.toast.is-on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ---------- Pause ---------- */
+
+.pause {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 6, 3, 0.55);
+  pointer-events: auto;
+}
+
+.pause-panel {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  width: min(320px, calc(100vw - 32px));
+  padding: 18px 20px;
+  border-radius: 12px;
+  background: var(--ui-panel);
+  border: 1px solid var(--ui-hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pause-title {
+  margin: 0 0 4px;
+  font-family: var(--ui-serif);
+  font-weight: 600;
+  font-size: 28px;
+  color: var(--ui-ink);
+}
+
+.pause-resume,
+.pause-sound {
+  font-family: var(--ui-sans);
+  font-size: 14px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-hairline);
+  background: rgba(70, 44, 24, 0.7);
+  color: var(--ui-ink);
+  cursor: pointer;
+}
+
+.pause-resume:hover,
+.pause-sound:hover {
+  background: rgba(96, 62, 30, 0.9);
+}
+
+.pause-resume:focus-visible,
+.pause-sound:focus-visible {
+  outline: 2px solid var(--ui-gold);
+  outline-offset: 2px;
+}
+
+.controls {
+  margin: 6px 0 0;
+  padding: 0 0 0 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ui-ink-dim);
+}
+
+/* ---------- Finale greeting (top centre) ---------- */
+
+.finale {
+  position: fixed;
+  top: 16%;
+  left: 50%;
+  transform: translate(-50%, 8px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 1.2s ease, transform 1.2s ease;
+}
+
+.finale.is-on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.finale-hi {
+  font-family: var(--ui-deva);
+  font-size: clamp(34px, 7vw, 68px);
+  color: var(--ui-ink);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
+}
+
+.finale-en {
+  font-family: var(--ui-serif);
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(18px, 3.2vw, 28px);
+  color: var(--ui-gold);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+
+/* ---------- Phone width ---------- */
+
+@media (max-width: 600px) {
+  .thaali-strip {
+    right: 10px;
+    bottom: 10px;
+  }
+  .prompt-text {
+    font-size: 16px;
+  }
+  .prompt {
+    bottom: 22%;
+  }
+}
