@@ -35,6 +35,8 @@ import type { Cracker } from './crackers/Cracker';
 import { CRACKERS } from './crackers/catalog';
 import { placementPoint } from './crackers/placement';
 import { Intro } from './ui/Intro';
+import { spawnVillagers, inCheerRange, CHEER_MIN_POWER, CHEER_MAX_DELAY } from './people/villagers';
+import type { Villager } from './people/Villager';
 import { Prompt } from './ui/Prompt';
 import { ThaaliStrip } from './ui/ThaaliStrip';
 import { Pause } from './ui/Pause';
@@ -81,6 +83,14 @@ interface FarBang {
   pos: THREE.Vector3;
 }
 
+/** A villager's cheer waiting for its random delay to pass before it starts. */
+interface PendingCheer {
+  /** Seconds until the villager starts to cheer. */
+  remaining: number;
+  /** The villager who cheers. */
+  villager: Villager;
+}
+
 /**
  * The whole game. The constructor builds the village and every system; start() begins the render loop. Clicking
  * the intro card starts the walk-in, after which keys, clicks and the pointer lock drive play.
@@ -109,6 +119,10 @@ export class Game {
     burstCount: 0,
   };
   private readonly farQueue: FarBang[] = [];
+  /** The villagers of the aangan, who cheer at big bursts. */
+  private readonly villagers: Villager[];
+  /** Cheers waiting out their random delay; drained every frame by the game loop. */
+  private readonly cheerQueue: PendingCheer[] = [];
   private readonly finaleCounter = new FinaleCounter();
   private readonly intro: Intro;
   private readonly prompt: Prompt;
@@ -123,6 +137,10 @@ export class Game {
   /** Plays a far bang once its delay has passed; a field so the per-frame drain does not allocate a closure. */
   private readonly playFar = (e: FarBang): void => {
     this.audio.play('farBoom', e.pos);
+  };
+  /** Starts a villager's cheer once its delay has passed; a field so the per-frame drain does not allocate a closure. */
+  private readonly fireCheer = (e: PendingCheer): void => {
+    e.villager.cheer();
   };
   /** The hand-held sparkler currently in the left hand, or null. */
   private leftHeld: HandHeld | null = null;
@@ -210,6 +228,10 @@ export class Game {
     this.agarbatti = new Agarbatti(this.fx);
     this.engine.add(this.agarbatti);
 
+    // The villagers are solid to the player and the kids steer clear of them; they all get the live player position.
+    this.villagers = spawnVillagers(scene, this.fx, this.engine, world);
+    for (const v of this.villagers) v.setPlayer(this.player.position);
+
     // Sky bursts report their bangs here; the bang plays after the sound's travel time (see frame()).
     this.sky.onFarBurst = (pos, delaySec) => {
       this.farQueue.push({ remaining: delaySec, pos });
@@ -218,6 +240,8 @@ export class Game {
     events.on('burst', (p) => {
       if (countsTowardFinale(p.power)) this.countBurst();
     });
+    // Villagers near a big burst cheer, each after its own short random delay.
+    events.on('burst', (p) => this.queueCheers(p));
 
     this.toast = new Toast(uiEl);
     this.prompt = new Prompt(uiEl);
@@ -329,6 +353,7 @@ export class Game {
   private frame(dt: number, t: number): void {
     aerialBurstTick(dt);
     drainQueue(this.farQueue, dt, this.playFar);
+    drainQueue(this.cheerQueue, dt, this.fireCheer);
     this.syncPause();
     this.stepIntroWalk(dt);
     this.syncState();
@@ -538,6 +563,20 @@ export class Game {
   /** Counts one burst toward the finale, and starts the finale on the call that reaches the target. */
   private countBurst(): void {
     if (this.finaleCounter.record()) this.startFinale();
+  }
+
+  /**
+   * Queues a cheer for each villager within range of a burst that is big enough. Each gets its own random delay,
+   * which the game loop counts down, so a crowd does not cheer in unison. The burst is always at a position, so
+   * the range is measured from it.
+   */
+  private queueCheers(p: { x: number; z: number; power: number }): void {
+    if (p.power < CHEER_MIN_POWER) return;
+    for (const v of this.villagers) {
+      const pos = v.object.position;
+      if (!inCheerRange(pos.x, pos.z, p.x, p.z)) continue;
+      this.cheerQueue.push({ remaining: Math.random() * CHEER_MAX_DELAY, villager: v });
+    }
   }
 
   /** Starts the neighbours' sky-show and the greeting. Called once per session. */
