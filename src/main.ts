@@ -104,13 +104,21 @@ engine.add({
     fx.smoke.puff(fountainOrigin, { count: 6, size: 0.4 });
     fx.flashes.flash(fountainOrigin, 0xffb347, 6, 6, 0.4);
     fx.shake.add(0.3);
+    audio.play('roar', fountainOrigin, { duration: 3 });
   },
 });
 
 // Clicking the canvas captures the pointer so mouse movement turns the view; the first click also unlocks audio.
 engine.renderer.domElement.addEventListener('click', () => {
   input.requestLock();
-  fx.audio.init();
+  audio.init();
+  audio.startAmbience();
+});
+// Keeps the listener on the camera after the shake offset is applied, so panning matches what is on screen.
+engine.add({
+  update() {
+    audio.updateListener(engine.camera);
+  },
 });
 // Registered last so per-frame input state is cleared only after every system read it.
 engine.add({
