@@ -1,0 +1,26 @@
+/* Base page styling: the 3D canvas fills the viewport and the HUD layer sits on top of it.
+   Kept minimal here; the HUD and village styles are added by later tasks. */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+}
+
+#app canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
