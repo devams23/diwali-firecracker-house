@@ -22,10 +22,11 @@ export function clampPlacement(x: number, z: number): { x: number; z: number } {
 }
 
 /**
- * Ground point 1.2 m ahead of the eye along the horizontal part of the view direction, clamped to the floor.
- * A view straight up or down has no horizontal direction, so the point stays directly below the eye.
+ * Ground point `reach` metres ahead of the eye along the horizontal part of the view direction (1.2 m by default),
+ * clamped to the floor. A view straight up or down has no horizontal direction, so the point stays directly below
+ * the eye.
  */
-export function placementPoint(eye: THREE.Vector3, forward: THREE.Vector3): THREE.Vector3 {
+export function placementPoint(eye: THREE.Vector3, forward: THREE.Vector3, reach = REACH): THREE.Vector3 {
   // Only the horizontal heading matters: looking down at the floor must not push the point off the spot.
   const fx = forward.x;
   const fz = forward.z;
@@ -33,8 +34,8 @@ export function placementPoint(eye: THREE.Vector3, forward: THREE.Vector3): THRE
   let x = eye.x;
   let z = eye.z;
   if (len > 1e-6) {
-    x += (fx / len) * REACH;
-    z += (fz / len) * REACH;
+    x += (fx / len) * reach;
+    z += (fz / len) * reach;
   }
   const c = clampPlacement(x, z);
   return new THREE.Vector3(c.x, 0, c.z);

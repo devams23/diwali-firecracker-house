@@ -32,7 +32,7 @@ import { CrackerManager } from './crackers/CrackerManager';
 import { createCracker } from './crackers/factory';
 import { HandHeld } from './crackers/HandHeld';
 import type { Cracker } from './crackers/Cracker';
-import { CRACKERS } from './crackers/catalog';
+import { CRACKERS, type CrackerKind } from './crackers/catalog';
 import { placementPoint } from './crackers/placement';
 import { Intro } from './ui/Intro';
 import { spawnVillagers, inCheerRange, CHEER_MIN_POWER, CHEER_MAX_DELAY } from './people/villagers';
@@ -42,6 +42,7 @@ import { ThaaliStrip } from './ui/ThaaliStrip';
 import { Pause } from './ui/Pause';
 import { Finale, FinaleCounter, countsTowardFinale } from './ui/Finale';
 import { Toast } from './ui/Toast';
+import { debugRequested, installDebugHook } from './debugHook';
 
 /** Niche indices (into the aangan diya spots) that hold a real lit lamp instead of a decorative one. */
 const LIT_NICHES = [2, 5, 9];
@@ -61,6 +62,8 @@ const STEP_BACK_SECONDS = 2;
 const LOOK_FALLBACK_REACH = 1.6;
 /** Radius, in metres, around the agarbatti tip within which a ground fuse can be lit. */
 const TIP_REACH = 0.6;
+/** Metres ahead of the player at which the debug hook places a cracker, so it is in view from a tilted camera. */
+const DEBUG_PLACE_REACH = 3;
 /** Seconds the neighbours' sky-show lasts after the finale starts. */
 const FINALE_SECONDS = 20;
 /** Shortest gap between neighbour bursts during the finale, in seconds. */
@@ -287,6 +290,16 @@ export class Game {
     });
     // Registered last so per-frame input state is cleared only after every system read it.
     this.engine.add({ update: () => this.input.endFrame() });
+
+    // Automated tests only: with ?debug in the URL, the page exposes window.__diwali (see debugHook.ts).
+    if (debugRequested(location.search)) {
+      installDebugHook({
+        place: (kind) => this.debugPlace(kind),
+        lightAll: () => this.debugLightAll(),
+        teleport: (x, z, yaw, pitch) => this.debugTeleport(x, z, yaw, pitch),
+        state: () => ({ ...this.state }),
+      });
+    }
   }
 
   /** Starts the render loop. The intro card waits for the first click before anything else happens. */
@@ -643,6 +656,30 @@ export class Game {
     const palette = SKY_PALETTES[Math.floor(Math.random() * SKY_PALETTES.length)];
     const style = FINALE_STYLES[Math.floor(Math.random() * FINALE_STYLES.length)];
     aerialBurst(this.fx, this.finaleAt, style, palette);
+  }
+
+  /**
+   * Debug hook: sets a ground cracker down DEBUG_PLACE_REACH metres ahead of the player, far enough that a view tilted
+   * down a little (or up, for a rocket) shows it.
+   */
+  private debugPlace(kind: CrackerKind): void {
+    if (CRACKERS[kind].handheld) throw new Error(`debug place: ${kind} is hand-held`);
+    this.player.forward(this.tmpForward);
+    const spot = placementPoint(this.player.position, this.tmpForward, DEBUG_PLACE_REACH);
+    this.crackers.add(createCracker(kind, this.fx, spot, this.player.yaw));
+  }
+
+  /** Debug hook: lights every ground cracker that is still unlit. */
+  private debugLightAll(): void {
+    for (const c of this.crackers.list) c.light();
+  }
+
+  /** Debug hook: moves the player to (x, z), turns them to the given yaw and tilts the view to the given pitch. */
+  private debugTeleport(x: number, z: number, yaw: number, pitch = 0): void {
+    this.player.position.x = x;
+    this.player.position.z = z;
+    this.player.yaw = yaw;
+    this.player.pitch = pitch;
   }
 
   /** Chooses the prompt: the "Step back!" warning, the focused object's label, or the next onboarding hint. */
