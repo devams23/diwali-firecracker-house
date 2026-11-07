@@ -14,8 +14,10 @@ const REF_HEIGHT = 1.6;
 const HIP_STAND = 0.78;
 /** Top of the charpai weave (props.ts: rail at 0.44 plus 0.026), the seat a sitting villager rests on. */
 const SEAT_TOP = 0.466;
-/** Hip height of a seated figure: a little above the seat so the torso clears the weave. */
-const HIP_SIT = SEAT_TOP + 0.1;
+/** Radius of a thigh, which lies flat on the weave in the cross-legged pose. */
+const THIGH_R = 0.07;
+/** Hip height of a cross-legged figure: thighs rest flat on the weave with a little clearance above it. */
+const HIP_SIT = SEAT_TOP + THIGH_R + 0.02;
 /** Torso centre above the hip. */
 const TORSO_UP = 0.27;
 const TORSO_RADIUS = 0.17;
@@ -31,6 +33,12 @@ const ARM_LENGTH = 0.55;
 const LEG_X = 0.09;
 /** Length of a seated thigh, which points forward from the hip. */
 const THIGH_LENGTH = 0.42;
+/** Length of a cross-legged shin, which lies flat from the knee across the front. */
+const SHIN_LENGTH = 0.5;
+/** Sideways offset of each shin's centre from its hip, toward the centre line, so the two shins cross. */
+const SHIN_CENTRE_X = 0.21;
+/** Height the right shin lies above the left, so the two shins cross rather than intersect. */
+const SHIN_STACK = 0.14;
 /** Height of a saree skirt, from the floor up to the waist. */
 const SKIRT_H = 0.72;
 /** Length of the sparkler stick held in the hand, in metres. */
@@ -104,7 +112,7 @@ const GEO = {
   arm: new THREE.CylinderGeometry(0.05, 0.045, ARM_LENGTH, 8),
   leg: new THREE.CylinderGeometry(0.07, 0.065, HIP_STAND, 8),
   thigh: new THREE.CylinderGeometry(0.07, 0.07, THIGH_LENGTH, 8),
-  shin: new THREE.CylinderGeometry(0.065, 0.06, HIP_SIT, 8),
+  shin: new THREE.CylinderGeometry(0.065, 0.06, SHIN_LENGTH, 8),
   skirt: new THREE.CylinderGeometry(0.17, 0.26, SKIRT_H, 14),
   /** Open-ended gold band at the hem of the saree. */
   band: new THREE.CylinderGeometry(0.265, 0.265, 0.04, 14, 1, true),
@@ -155,12 +163,14 @@ export interface VillagerOptions {
   clothes: number;
   /** Colour of a dupatta over the head. When given, the figure wears a saree skirt with a gold band at the hem. */
   dupatta?: number;
-  /** stand: still; sit: seated with legs forward; walkLoop: walks a circle around loopCenter. */
+  /** stand: still; sit: cross-legged on a charpai's weave; walkLoop: walks a circle around loopCenter. */
   pose: 'stand' | 'sit' | 'walkLoop';
   /** Centre of the walking loop, on the ground, for a walkLoop villager. */
   loopCenter?: THREE.Vector3;
   /** Radius of the walking loop in metres. */
   loopRadius?: number;
+  /** Angle on the walking loop at the start, in radians. Defaults to 0, so two kids can start apart. */
+  loopStart?: number;
   /** Holds a lit sparkler in the right hand, which throws sparks while it burns. */
   sparkler?: boolean;
 }
@@ -209,6 +219,7 @@ export class Villager implements Updatable {
     this.loopX = o.loopCenter?.x ?? 0;
     this.loopZ = o.loopCenter?.z ?? 0;
     this.loopR = o.loopRadius ?? 1;
+    this.angle = o.loopStart ?? 0;
     this.object.scale.setScalar(o.height / REF_HEIGHT);
     this.object.add(this.sway);
 
@@ -245,7 +256,7 @@ export class Villager implements Updatable {
     }
     if (o.sparkler) this.buildSparkler();
 
-    // Legs are omitted under a saree, where the skirt covers them. A seated figure has thighs forward and shins down.
+    // Legs are omitted under a saree, where the skirt covers them. A seated figure sits cross-legged.
     if (o.dupatta === undefined) {
       for (const [leg, side] of [
         [this.legL, -1],
@@ -253,11 +264,15 @@ export class Villager implements Updatable {
       ] as const) {
         leg.position.set(side * LEG_X, hipY, 0);
         if (o.pose === 'sit') {
+          // Thigh: lies flat on the weave, pointing forward from the hip, so its underside rests on the seat.
           const thigh = new THREE.Mesh(GEO.thigh, cloth);
           thigh.rotation.x = Math.PI / 2;
           thigh.position.z = THIGH_LENGTH / 2;
+          // Shin: lies flat from the knee across the front, toward the centre line. The right shin sits on top
+          // of the left, so the two cross and neither passes through the cot.
           const shin = new THREE.Mesh(GEO.shin, cloth);
-          shin.position.set(0, -HIP_SIT / 2, THIGH_LENGTH);
+          shin.rotation.z = Math.PI / 2;
+          shin.position.set(-side * SHIN_CENTRE_X, side > 0 ? SHIN_STACK : 0, THIGH_LENGTH);
           leg.add(thigh, shin);
         } else {
           const limb = new THREE.Mesh(GEO.leg, cloth);
@@ -283,9 +298,12 @@ export class Villager implements Updatable {
     this.player = p;
   }
 
-  /** Starts a cheer: arms swing up and the villager hops, over CHEER_SECONDS. A cheer already running restarts. */
+  /**
+   * Starts a cheer: arms swing up and the villager hops, over CHEER_SECONDS. A cheer already running is left to
+   * finish, so a burst during one does not restart the arms from the bottom.
+   */
   cheer(): void {
-    this.cheerAge = 0;
+    if (this.cheerAge < 0) this.cheerAge = 0;
   }
 
   /**

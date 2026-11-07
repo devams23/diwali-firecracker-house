@@ -71,6 +71,8 @@ export function spawnVillagers(
       pose: 'walkLoop',
       loopCenter: new THREE.Vector3(3, 0, -2),
       loopRadius: 1.5,
+      // Starts on the far side of its loop, so the two kids do not walk in lockstep.
+      loopStart: Math.PI,
       sparkler: true,
     },
     fx,
@@ -80,9 +82,10 @@ export function spawnVillagers(
   const elder = new Villager({ height: 1.6, clothes: KURTA, pose: 'sit' }, fx);
   elder.place(-6, 0, 2, Math.PI / 2);
 
-  // The woman stands just inside the verandah, in front of the door and clear of its wall.
+  // The woman stands on the verandah beside the rangoli, on the side away from the girl, facing the courtyard.
+  // Her skirt hem (0.26 m) clears the rangoli edge at x -0.8, and her collider clears the wall face at z -8.6.
   const woman = new Villager({ height: 1.6, clothes: SAREE, dupatta: DUPATTA, pose: 'stand' }, fx);
-  woman.place(0, VERANDAH_FLOOR, -7.75, 0);
+  woman.place(-1.1, VERANDAH_FLOOR, -8.1, 0);
 
   // The man stands just inside the gate, to one side of the path the player walks in, facing north.
   const man = new Villager({ height: 1.65, clothes: KURTA, pose: 'stand' }, fx);
@@ -92,8 +95,9 @@ export function spawnVillagers(
   const girl = new Villager({ height: 1.3, clothes: TERRACOTTA, pose: 'stand' }, fx);
   girl.place(1.15, VERANDAH_FLOOR, -7.9, 0);
 
-  // Standing and seated villagers are solid to the player. The kids keep to their loops, so they are not.
-  for (const v of [elder, woman, man, girl]) {
+  // Standing villagers are solid to the player. The seated elder is inside the charpai's own collider, so needs
+  // none of his own. The kids keep to their loops, so they are not solid either.
+  for (const v of [woman, man, girl]) {
     world.addCircle(v.object.position.x, v.object.position.z, BODY_RADIUS);
   }
 
