@@ -35,11 +35,23 @@
   display: none !important;
 }
 
-/* Overlays are inert to the pointer unless they are buttons or the intro card. */
+/* Text defaults for every overlay. Pointer events are not set here: #ui is pass-through (style.css), each overlay
+   inherits that, and only .intro and .pause opt back in with pointer-events: auto. */
 #ui > * {
-  pointer-events: none;
   font-family: var(--ui-sans);
   color: var(--ui-ink);
+}
+
+/* One fade used by the opening card's staggered lines. */
+@keyframes intro-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* ---------- Opening card ---------- */
@@ -64,28 +76,31 @@
   pointer-events: none;
 }
 
+/* Stagger: the Hindi line at 0.8 s, the English at 2.0 s, the hint at 3.2 s. */
 .intro-hi {
   font-family: var(--ui-deva);
-  font-size: clamp(30px, 6vw, 56px);
+  font-size: clamp(28px, 5vw, 40px);
   color: var(--ui-ink);
+  animation: intro-rise 1.2s ease 0.8s both;
 }
 
 .intro-en {
   font-family: var(--ui-serif);
   font-style: italic;
   font-weight: 500;
-  font-size: clamp(18px, 3vw, 26px);
+  font-size: clamp(18px, 3vw, 22px);
   color: var(--ui-ink-dim);
+  animation: intro-rise 1.2s ease 2s both;
 }
 
 .intro-hint {
   margin-top: 26px;
   font-size: 13px;
   letter-spacing: 0.14em;
-  text-transform: uppercase;
   color: var(--ui-gold);
   border-top: 1px solid var(--ui-hairline);
   padding-top: 10px;
+  animation: intro-rise 1s ease 3.2s both;
 }
 
 /* ---------- Prompt chip ---------- */
@@ -105,13 +120,9 @@
   border: 1px solid var(--ui-hairline);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   transition: opacity 0.12s ease;
-  opacity: 0;
 }
 
-.prompt:not(:empty) {
-  opacity: 1;
-}
-
+/* Cross-fade: the chip is dimmed while its words are swapped (Prompt.set), then brought back. */
 .prompt.is-changing {
   opacity: 0;
 }
@@ -294,7 +305,7 @@
 .finale-hi {
   font-family: var(--ui-deva);
   font-size: clamp(34px, 7vw, 68px);
-  color: var(--ui-ink);
+  color: var(--ui-gold);
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
 }
 
@@ -303,7 +314,7 @@
   font-style: italic;
   font-weight: 500;
   font-size: clamp(18px, 3.2vw, 28px);
-  color: var(--ui-gold);
+  color: var(--ui-ink-dim);
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
 }
 

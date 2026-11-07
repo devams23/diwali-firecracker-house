@@ -34,6 +34,7 @@ export class Prompt {
   constructor(parent: HTMLElement) {
     this.el = document.createElement('div');
     this.el.className = 'prompt is-changing';
+    this.el.hidden = true;
     this.keyEl = document.createElement('span');
     this.keyEl.className = 'keycap';
     this.textEl = document.createElement('span');
@@ -42,12 +43,21 @@ export class Prompt {
     parent.appendChild(this.el);
   }
 
-  /** Shows `text` as the prompt; does nothing when it is already shown. */
+  /**
+   * Shows `text` as the prompt; does nothing when it is already shown. Empty text hides the chip entirely, so no
+   * empty pill is left on screen (for example while paused).
+   */
   set(text: string): void {
     if (text === this.current) return;
     this.current = text;
-    this.el.classList.add('is-changing');
     window.clearTimeout(this.swapTimer);
+    if (text === '') {
+      this.el.hidden = true;
+      this.el.classList.add('is-changing');
+      return;
+    }
+    this.el.hidden = false;
+    this.el.classList.add('is-changing');
     // Swap the words while the chip is faded out, then fade it back in.
     this.swapTimer = window.setTimeout(() => {
       const parsed = parsePrompt(text);

@@ -49,6 +49,12 @@ const LIT_NICHES = [2, 5, 9];
 const INTRO_SECONDS = 2.5;
 /** Metres the player walks forward through the gate after the intro is dismissed. */
 const INTRO_WALK_METRES = 1;
+/** Collision radius of the player; matches FirstPersonController so the gate walk stops at the same walls. */
+const PLAYER_RADIUS = 0.3;
+/** Height of the brass cup above the stand's origin, where the agarbatti's base sits. */
+const STAND_CUP_HEIGHT = 0.042;
+/** Metres within which a dropped thaali is picked up again when a sparkler burns out. */
+const THAALI_RECATCH_REACH = 2;
 /** Seconds the "Step back!" prompt stays after a cracker is lit on the ground. */
 const STEP_BACK_SECONDS = 2;
 /** Reach, in metres, of the look-direction fallback for lighting a cracker on the ground. */
@@ -97,6 +103,7 @@ interface PendingCheer {
  */
 export class Game {
   private readonly engine: Engine;
+  private readonly world: CollisionWorld;
   private readonly input: Input;
   private readonly player: FirstPersonController;
   private readonly hands: Hands;
@@ -151,8 +158,12 @@ export class Game {
   private started = false;
   private lockSeen = false;
   private paused = false;
-  /** Seconds left of the walk through the gate after the intro is dismissed. */
-  private introWalk = 0;
+  /** True while the walk through the gate runs after the intro is dismissed. */
+  private introWalking = false;
+  /** Seconds elapsed in the walk through the gate. */
+  private introElapsed = 0;
+  /** Horizontal direction of the gate walk, fixed when the intro is dismissed. */
+  private readonly walkDir = new THREE.Vector3();
   /** Time (in engine seconds) until which the "Step back!" prompt is shown. */
   private stepBackUntil = -1;
   /** Seconds left of the neighbours' sky-show; zero when no finale is running. */
@@ -168,6 +179,7 @@ export class Game {
     scene.add(this.engine.camera);
 
     const world = new CollisionWorld();
+    this.world = world;
     const tex = makeTextures();
     const aangan = buildAangan(scene, world, tex);
     const house = buildHouse(scene, world, tex);
@@ -227,6 +239,10 @@ export class Game {
     scene.add(this.thaali.object);
     this.agarbatti = new Agarbatti(this.fx);
     this.engine.add(this.agarbatti);
+    // The agarbatti stands upright in the brass cup from the start; taking it reparents it to the right hand.
+    const standPos = this.props.agarbattiStandPos;
+    this.agarbatti.object.position.set(standPos.x, standPos.y + STAND_CUP_HEIGHT, standPos.z);
+    scene.add(this.agarbatti.object);
 
     // The villagers are solid to the player and the kids steer clear of them; they all get the live player position.
     this.villagers = spawnVillagers(scene, this.fx, this.engine, world);
@@ -345,7 +361,9 @@ export class Game {
     this.audio.startAmbience();
     this.input.requestLock();
     this.intro.fadeOut(INTRO_SECONDS);
-    this.introWalk = INTRO_SECONDS;
+    this.player.forward(this.walkDir);
+    this.introElapsed = 0;
+    this.introWalking = true;
     this.refreshStrip();
   }
 
@@ -363,13 +381,24 @@ export class Game {
     this.updatePrompt(t);
   }
 
-  /** Walks the player forward through the gate for the intro's duration, ignoring collisions over that short step. */
+  /**
+   * Walks the player forward through the gate over the intro's duration. The speed eases out, starting fast and
+   * slowing to a stop, so the walk settles rather than halting. Each step goes through the collision world, so the
+   * player stops at a wall instead of passing through it. The direction is fixed when the walk starts.
+   */
   private stepIntroWalk(dt: number): void {
-    if (this.introWalk <= 0) return;
-    const step = Math.min(dt, this.introWalk);
-    this.introWalk -= dt;
-    this.player.forward(this.tmpForward);
-    this.player.position.addScaledVector(this.tmpForward, (INTRO_WALK_METRES * step) / INTRO_SECONDS);
+    if (!this.introWalking) return;
+    const remaining = INTRO_SECONDS - this.introElapsed;
+    const step = Math.min(dt, remaining);
+    // Speed 2D/T * (1 - u) integrates to exactly D over T, where u runs from 0 to 1 across the walk.
+    const u = this.introElapsed / INTRO_SECONDS;
+    const dist = ((2 * INTRO_WALK_METRES) / INTRO_SECONDS) * (1 - u) * step;
+    this.introElapsed += step;
+    if (this.introElapsed >= INTRO_SECONDS) this.introWalking = false;
+    const p = this.player.position;
+    const r = this.world.resolve(p.x + this.walkDir.x * dist, p.z + this.walkDir.z * dist, PLAYER_RADIUS);
+    p.x = r.x;
+    p.z = r.z;
   }
 
   /** Opens the pause panel when the pointer lock is lost after the intro, and closes it when the lock returns. */
@@ -512,6 +541,13 @@ export class Game {
       this.hands.holdLeft(null);
     }
     this.countBurst();
+    // The plate was set down to free the hand; if it is still close, it goes straight back into the hand.
+    if (this.thaali.location === 'ground') {
+      const tp = this.thaali.object.position;
+      const dx = tp.x - this.player.position.x;
+      const dz = tp.z - this.player.position.z;
+      if (dx * dx + dz * dz <= THAALI_RECATCH_REACH * THAALI_RECATCH_REACH) this.pickUpThaali();
+    }
   }
 
   /** G moves the thaali between the hand and the ground. */
