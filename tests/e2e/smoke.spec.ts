@@ -42,8 +42,10 @@ const AFTER_BURST_MS = 1500;
 const HELD_SETTLE_MS = 1500;
 /** Downward tilt in radians: a cracker 3 m ahead sits about 28° below the eye, so this centres it in the view. */
 const LOOK_DOWN = -0.5;
-/** Upward tilt in radians for the sky shot: about 25 degrees, so a burst 30 to 40 m up sits in the upper view. */
-const SKY_LOOK_UP = 0.44;
+/** Upward tilt in radians for the sky shot: about 20 degrees, so shells bursting 40 to 70 m up sit in the upper view. */
+const SKY_LOOK_UP = 0.35;
+/** Shells that must be bursting together before the sky shot is taken, so the frame shows a real show. */
+const SKY_SHOT_BURSTS = 5;
 
 /**
  * Records every console error and uncaught page error. Font requests are answered locally so the run does not depend
@@ -159,19 +161,22 @@ test('the debug hook places, lights and fires crackers', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('the sky show is shot from a tilted view during a burst', async ({ page }) => {
+test('the sky show is shot from a tilted view during a salvo', async ({ page }) => {
   const errors = await watchErrors(page);
   await page.goto('/?debug');
   await startFromIntro(page);
 
-  // A rocket 3 m ahead with the view tilted up to the sky. The burst is captured as soon as the game counts it.
+  // Look up 20 degrees and fire a salvo aimed the same way, so the shells burst in the view.
   await page.evaluate((pitch: number) => {
     const d = window.__diwali!;
     d.teleport(0, 6, 0, pitch);
-    d.place('rocket');
+    d.skyShow(0);
   }, SKY_LOOK_UP);
-  await page.evaluate(() => window.__diwali!.lightAll());
-  await page.waitForFunction(() => window.__diwali!.state().burstCount >= 1, undefined, { timeout: BURST_TIMEOUT_MS });
+  // Software WebGL is slow, so the wait polls in short steps until several shells are open at once, then shoots.
+  await page.waitForFunction((n: number) => window.__diwali!.skyBursting() >= n, SKY_SHOT_BURSTS, {
+    timeout: BURST_TIMEOUT_MS,
+    polling: 100,
+  });
   const sky = await page.screenshot({ path: 'screenshots/sky.png' });
 
   expect((await pixelStats(page, sky)).mean).toBeGreaterThan(MIN_MEAN_LUMINANCE);

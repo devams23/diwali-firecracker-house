@@ -27,9 +27,10 @@ function spireRadius(y: number): number {
 }
 const SOUND_SPEED = 343;
 /** Rockets that can be climbing or bursting at the same time. */
-const BURST_SLOTS = 4;
+/** Shells that can be climbing or bursting at the same time; a salvo of six needs room for all of them. */
+const BURST_SLOTS = 8;
 /** Most particles one burst can have. */
-const BURST_MAX = 200;
+const BURST_MAX = 240;
 /** Glowing trail particles behind each rising rocket. */
 const TRAIL = 14;
 /** Seconds between the trail samples, so the trail is about TRAIL * TRAIL_STEP long in time. */
@@ -41,6 +42,10 @@ const PARTICLES = BURST_SLOTS * SLOT_SIZE;
 /** Launch sites lie this far (metres) from the village centre, on the fields around it. */
 const LAUNCH_NEAR = 90;
 const LAUNCH_FAR = 170;
+/** Brightness of each burst particle relative to its colour; keeps hundreds of additive sparks from saturating to white. */
+const BURST_GAIN = 0.6;
+/** Half-width, in radians, of the arc a salvo's launch fields are spread across around its aim. */
+const SALVO_SPREAD = 0.45;
 /** Lowest burst height and the spread above it, in metres. */
 const APEX_MIN = 40;
 const APEX_RANGE = 30;
@@ -76,9 +81,9 @@ interface ShapeSpec {
   drag: number;
 }
 const SHAPES: Record<FireworkShape, ShapeSpec> = {
-  peony: { count: [130, 190], speed: [6, 10], life: [2.6, 3.0], gravity: 3, drag: 0.6 },
-  willow: { count: [110, 160], speed: [3, 6.5], life: [4.0, 4.6], gravity: 2.2, drag: 1.1 },
-  ring: { count: [90, 120], speed: [7, 8], life: [2.4, 2.7], gravity: 3, drag: 0.6 },
+  peony: { count: [180, 230], speed: [8, 13], life: [2.6, 3.0], gravity: 3, drag: 0.6 },
+  willow: { count: [150, 200], speed: [4, 8], life: [4.0, 4.6], gravity: 2.2, drag: 1.1 },
+  ring: { count: [130, 160], speed: [9, 10], life: [2.4, 2.7], gravity: 3, drag: 0.6 },
 };
 const SHAPE_NAMES: FireworkShape[] = ['peony', 'willow', 'ring'];
 
@@ -217,6 +222,26 @@ function gableRoof(w: number, h: number, d: number): THREE.BufferGeometry {
   g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
   g.computeVertexNormals();
   return g;
+}
+
+/**
+ * A soft round sprite for the burst particles: a bright core fading to nothing at the edge, so each spark reads as a
+ * point of light rather than a square.
+ */
+function sparkSprite(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.35, 'rgba(255,255,255,0.8)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 64, 64);
+  }
+  return new THREE.CanvasTexture(canvas);
 }
 
 /** Night sky, horizon silhouettes and the festival firework show; add once and register with the engine. */
@@ -510,7 +535,8 @@ export class Sky implements Updatable {
       geo,
       new THREE.PointsMaterial({
         vertexColors: true,
-        size: 2.0,
+        map: sparkSprite(),
+        size: 4.2,
         sizeAttenuation: true,
         transparent: true,
         depthWrite: false,
@@ -522,15 +548,41 @@ export class Sky implements Updatable {
     scene.add(points);
   }
 
+  /**
+   * Fires a salvo of six shells at once, a mix of peony, willow and ring, from six free slots. The launch fields are
+   * spread about the given yaw (radians, 0 is straight ahead down -z), so the shells fall inside a view turned that way.
+   */
+  salvo(aim: number): void {
+    const shapes: FireworkShape[] = ['peony', 'willow', 'ring', 'peony', 'ring', 'willow'];
+    for (const shape of shapes) {
+      const slot = this.rockets.find((r) => !r.active);
+      if (slot) this.launch(slot, shape, aim);
+    }
+  }
+
+  /**
+   * Advances the rockets and bursts by `seconds` of game time in fixed steps, without waiting for frames. The debug
+   * hook uses it so a salvo is already open when a slow software-rendered frame is drawn.
+   */
+  advance(seconds: number): void {
+    const step = 1 / 30;
+    for (let t = 0; t < seconds; t += step) this.stepRockets(step);
+  }
+
+  /** How many shells are bursting right now, that is, opened and not yet faded; used to time a capture. */
+  burstingCount(): number {
+    return this.rockets.filter((r) => r.active && !r.rising).length;
+  }
+
   /** Starts a rocket from a field 90 to 170 m out, climbing to a burst 40 to 70 m up over the village. */
-  private launch(b: Rocket): void {
-    const a = Math.random() * Math.PI * 2;
+  private launch(b: Rocket, shape?: FireworkShape, aim?: number): void {
+    const a = aim === undefined ? Math.random() * Math.PI * 2 : aim + between(-SALVO_SPREAD, SALVO_SPREAD);
     const dist = between(LAUNCH_NEAR, LAUNCH_FAR);
     b.start.set(Math.sin(a) * dist, 0, -Math.cos(a) * dist);
     // The burst opens a little off the launch line, so the rockets do not all rise on one column.
     b.apex.set(b.start.x + between(-6, 6), between(APEX_MIN, APEX_MIN + APEX_RANGE), b.start.z + between(-6, 6));
     b.rise = between(RISE_MIN, RISE_MIN + RISE_RANGE);
-    b.shape = pick(SHAPE_NAMES);
+    b.shape = shape ?? pick(SHAPE_NAMES);
     b.age = 0;
     b.rising = true;
     b.active = true;
@@ -664,9 +716,9 @@ export class Sky implements Updatable {
         this.burstPos[p] += this.burstVel[p] * dt;
         this.burstPos[p + 1] += this.burstVel[p + 1] * dt;
         this.burstPos[p + 2] += this.burstVel[p + 2] * dt;
-        this.burstCol[p] = this.burstBase[p] * f;
-        this.burstCol[p + 1] = this.burstBase[p + 1] * f;
-        this.burstCol[p + 2] = this.burstBase[p + 2] * f;
+        this.burstCol[p] = this.burstBase[p] * f * BURST_GAIN;
+        this.burstCol[p + 1] = this.burstBase[p + 1] * f * BURST_GAIN;
+        this.burstCol[p + 2] = this.burstBase[p + 2] * f * BURST_GAIN;
       }
       if (b.age >= b.life) {
         // Clear the colours so the dead particles vanish under additive blending.

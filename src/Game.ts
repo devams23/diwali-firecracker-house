@@ -48,6 +48,11 @@ import { debugRequested, installDebugHook } from './debugHook';
 
 /** Niche indices (into the aangan diya spots) that hold a real lit lamp instead of a decorative one. */
 const LIT_NICHES = [2, 5, 9];
+/**
+ * Game seconds the debug sky show is fast-forwarded: past the longest rocket climb (1.3 s) and into the first second of
+ * the bursts, so the sparks have spread into rings and fans rather than a single flash.
+ */
+const DEBUG_SKY_LEAD_SECONDS = 2.1;
 /** Seconds the intro card takes to fade out, during which the player walks through the gate. */
 const INTRO_SECONDS = 2.5;
 /** Metres the player walks forward through the gate after the intro is dismissed. */
@@ -306,6 +311,8 @@ export class Game {
         teleport: (x, z, yaw, pitch) => this.debugTeleport(x, z, yaw, pitch),
         state: () => ({ ...this.state }),
         pickupAll: () => this.debugPickupAll(),
+        skyShow: (yaw) => this.debugSkyShow(yaw),
+        skyBursting: () => this.sky.burstingCount(),
       });
     }
   }
@@ -690,6 +697,15 @@ export class Game {
     this.hands.holdRight(this.agarbatti.object);
     this.agarbattiLit = true;
     this.agarbatti.light();
+  }
+
+  /**
+   * Debug hook: fires a salvo around the yaw and fast-forwards past the climb, so the shells are already bursting
+   * for the next frame. Software WebGL draws about one frame a second, so a real climb would take half a minute.
+   */
+  private debugSkyShow(yaw: number): void {
+    this.sky.salvo(yaw);
+    this.sky.advance(DEBUG_SKY_LEAD_SECONDS);
   }
 
   /** Debug hook: lights every ground cracker that is still unlit. */

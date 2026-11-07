@@ -16,6 +16,10 @@ export interface DiwaliDebug {
   state(): PlayerState;
   /** Picks up the thaali with four crackers on it, and holds the agarbatti already lit in the right hand. */
   pickupAll(): void;
+  /** Fires a salvo of six neighbour shells at once, a mix of peony, willow and ring, aimed around the yaw (radians). */
+  skyShow(yaw: number): void;
+  /** How many shells are bursting right now; a capture polls this to catch the bright window. */
+  skyBursting(): number;
 }
 
 declare global {
