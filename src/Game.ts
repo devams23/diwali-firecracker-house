@@ -43,6 +43,7 @@ import { ThaaliStrip } from './ui/ThaaliStrip';
 import { Pause } from './ui/Pause';
 import { Finale, FinaleCounter, countsTowardFinale } from './ui/Finale';
 import { Toast } from './ui/Toast';
+import { PhotoMode } from './ui/PhotoMode';
 import { debugRequested, installDebugHook } from './debugHook';
 
 /** Niche indices (into the aangan diya spots) that hold a real lit lamp instead of a decorative one. */
@@ -111,6 +112,7 @@ export class Game {
   private readonly input: Input;
   private readonly player: FirstPersonController;
   private readonly hands: Hands;
+  private readonly photo: PhotoMode;
   private readonly audio: AudioEngine;
   private readonly fx: FxContext;
   private readonly sky: Sky;
@@ -219,6 +221,7 @@ export class Game {
     this.engine.add(this.player);
     this.hands = new Hands(this.engine.camera);
     this.engine.add(this.hands);
+    this.photo = new PhotoMode(this.engine, this.input, uiEl, [this.hands.right, this.hands.left]);
 
     // Shared effects that every cracker uses: pooled sparks, smoke, flash lights and camera shake.
     const shake = new CameraShake();
@@ -290,6 +293,8 @@ export class Game {
     this.engine.add({
       update: () => this.audio.updateListener(this.engine.camera),
     });
+    // Photo mode reads P and K before the input state is cleared.
+    this.engine.add(this.photo);
     // Registered last so per-frame input state is cleared only after every system read it.
     this.engine.add({ update: () => this.input.endFrame() });
 

@@ -39,6 +39,8 @@ The Playwright run starts its own dev server on port 5199. The first run needs
 | Q or scroll | Choose a cracker from the thaali |
 | Click | Touch the agarbatti tip to a ground fuse, or light a sparkler you are holding |
 | M | Sound on or off |
+| P | Photo mode on or off: hides the HUD and hands and adds a soft vignette and warm grade |
+| K | Save the current frame as a PNG (in photo mode) |
 | Esc | Pause and release the mouse |
 
 Light the agarbatti at the tulsi diya first, then click near a fuse to light it. Stand back after you light a
