@@ -50,6 +50,8 @@ const FRAG = /* glsl */ `
   void main() {
     vec4 tex = texture2D(uMap, gl_PointCoord);
     gl_FragColor = vec4(vColor, tex.a * vAlpha);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
   }
 `;
 

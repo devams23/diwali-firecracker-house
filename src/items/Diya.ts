@@ -188,6 +188,8 @@ const FIELD_FRAG = /* glsl */ `
     float a = smoothstep(0.5, 0.0, d);
     vec3 col = mix(uColor, vec3(1.0, 0.93, 0.75), a * a);
     gl_FragColor = vec4(col * vFlick, a * 0.85);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
   }
 `;
 

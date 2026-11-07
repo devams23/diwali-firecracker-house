@@ -80,6 +80,8 @@ const FRAG = /* glsl */ `
     if (d > 1.0) discard;
     float soft = 1.0 - d;
     gl_FragColor = vec4(vColor, vAlpha * soft * soft);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
   }
 `;
 
