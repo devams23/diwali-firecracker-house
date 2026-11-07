@@ -28,7 +28,7 @@ const VERANDAH_H = 0.3;
 export const TAKHT_H = 0.45;
 const VERANDAH_FRONT_Z = -7;
 const POST_Z = -7.15;
-const POST_X = [-5.5, -3, -1.4, 1.4, 3, 5.5];
+export const POST_X = [-5.5, -3, -1.4, 1.4, 3, 5.5];
 const WINDOW_X = [-4.6, 4.6];
 const DOOR_TOP = 2.35;
 /** Roof profile in the z/y plane: front eave, ridge, back eave. */

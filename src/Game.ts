@@ -18,6 +18,7 @@ import { buildHouse } from './world/House';
 import { buildProps, extraDiyaSpots, type PropsResult } from './world/props';
 import { buildLighting } from './world/Lighting';
 import { Sky } from './world/Sky';
+import { Festoons } from './world/Festoons';
 import { Diya, DiyaField } from './items/Diya';
 import { Thaali } from './items/Thaali';
 import { Agarbatti } from './items/Agarbatti';
@@ -191,6 +192,7 @@ export class Game {
     buildLighting(scene);
     this.sky = new Sky(scene);
     this.engine.add(this.sky);
+    this.engine.add(new Festoons(scene));
 
     // Six real lit lamps: the tulsi diya, two at the door and three in the aangan niches.
     const litPositions: THREE.Vector3[] = [
