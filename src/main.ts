@@ -13,6 +13,12 @@ import { buildProps, extraDiyaSpots } from './world/props';
 import { buildLighting } from './world/Lighting';
 import { Sky } from './world/Sky';
 import { Diya, DiyaField } from './items/Diya';
+import { SparkSystem } from './fx/SparkSystem';
+import { SmokeSystem } from './fx/SmokeSystem';
+import { FlashLights } from './fx/FlashLights';
+import { CameraShake } from './fx/CameraShake';
+import type { FxContext } from './fx/FxContext';
+import { AudioEngine } from './audio/AudioEngine';
 
 /** Niche indices (into the aangan diya spots) that hold a real lit lamp instead of a decorative one. */
 const LIT_NICHES = [2, 5, 9];
@@ -57,8 +63,55 @@ const input = new Input(engine.renderer.domElement);
 
 const player = new FirstPersonController(engine.camera, input, world);
 engine.add(player);
-// Clicking the canvas captures the pointer so mouse movement turns the view.
-engine.renderer.domElement.addEventListener('click', () => input.requestLock());
+
+// Shared effects that every cracker uses: pooled sparks, smoke, flash lights and camera shake.
+const shake = new CameraShake();
+const audio = new AudioEngine();
+const fx: FxContext = {
+  scene: engine.scene,
+  camera: engine.camera,
+  sparks: new SparkSystem(engine.scene),
+  smoke: new SmokeSystem(engine.scene),
+  flashes: new FlashLights(engine.scene),
+  shake,
+  audio,
+};
+engine.add(fx.sparks);
+engine.add(fx.smoke);
+engine.add(fx.flashes);
+// Registered after the controller so the shake offset lands on the rotation it just wrote.
+engine.add({
+  update(dt, t) {
+    shake.apply(engine.camera, dt, t);
+  },
+});
+
+// Debug fountain (KeyB) at the tulsi diya to exercise the effect systems; removed in Task 10.
+const fountainOrigin = props.tulsiDiyaPos.clone();
+engine.add({
+  update() {
+    if (!input.pressed('KeyB')) return;
+    fx.sparks.emit({
+      position: fountainOrigin,
+      speed: [4, 9],
+      spread: 0.5,
+      count: 400,
+      colors: [0xffb347, 0xf2a01f, 0xffe7a0],
+      life: [0.8, 1.8],
+      size: [0.02, 0.05],
+      crackle: true,
+    });
+    fx.smoke.puff(fountainOrigin, { count: 6, size: 0.4 });
+    fx.flashes.flash(fountainOrigin, 0xffb347, 6, 6, 0.4);
+    fx.shake.add(0.3);
+  },
+});
+
+// Clicking the canvas captures the pointer so mouse movement turns the view; the first click also unlocks audio.
+engine.renderer.domElement.addEventListener('click', () => {
+  input.requestLock();
+  fx.audio.init();
+});
 // Registered last so per-frame input state is cleared only after every system read it.
 engine.add({
   update() {
