@@ -1,6 +1,7 @@
 // Bombs (Laxmi and Sutli): instant, loud explosions that go off when the fuse runs out. Both share one routine
 // and differ only by the spec table below: the Laxmi is a sharp crack with paper scraps and a puff of smoke,
-// the Sutli a heavy boom with a ring of dust and more sparks. Players within 2.5 m also get a ringing ear.
+// the Sutli a heavy big blast with paper scraps, a ring of dust and more sparks. Players within 2.5 m of the
+// big blast also get extra shake and a ringing ear.
 import * as THREE from 'three';
 import { Cracker } from './Cracker';
 import type { FxContext } from '../fx/FxContext';
@@ -29,6 +30,8 @@ interface BombSpec {
   shake: number;
   /** Burst power announced on the game event bus. */
   power: number;
+  /** True for the big blast: a player standing close gets extra shake and a ringing ear. */
+  bigBlast: boolean;
 }
 
 /** Explosion tuning for each bomb variant. */
@@ -43,6 +46,7 @@ const SPECS: Record<BombVariant, BombSpec> = {
     paper: 60,
     shake: 0.35,
     power: 0.5,
+    bigBlast: false,
   },
   sutli: {
     flashColor: 0xffe6b8,
@@ -51,9 +55,10 @@ const SPECS: Record<BombVariant, BombSpec> = {
     flashDuration: 0.3,
     sound: 'boomBig',
     sparks: 400,
-    paper: 0,
+    paper: 40,
     shake: 0.8,
     power: 1.0,
+    bigBlast: true,
   },
 };
 
@@ -138,7 +143,8 @@ export class Bomb extends Cracker {
     }
 
     this.fx.shake.add(s.shake);
-    if (this.playerIsClose()) {
+    // Only the big blast rings the ear and adds extra shake to a player who is close.
+    if (s.bigBlast && this.playerIsClose()) {
       this.fx.shake.add(CLOSE_SHAKE);
       // The ringing is in the listener's head, so it plays without a position.
       this.fx.audio.play('earRing');

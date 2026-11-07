@@ -6,6 +6,18 @@ import { CRACKERS, type CrackerKind } from '../crackers/catalog';
 
 /** Name of the child Object3D that marks where a fuse is lit. */
 export const FUSE_NAME = 'fuse';
+/** Name of the rocket's glass bottle mesh, which stays behind when the rocket body flies off. */
+export const BOTTLE_NAME = 'bottle';
+/** Name of the braided fuse mesh along the ladi, so the ladi can burn it down as the pops walk. */
+export const LADI_BRAID_NAME = 'ladi-braid';
+/** Number of red tubes standing on the ladi's fuse. */
+export const LADI_TUBE_COUNT = 20;
+/** Number of curve segments in the ladi's braided fuse; each is the same number of indices. */
+export const LADI_BRAID_SEGMENTS = 80;
+/** Bottom of the phuljhadi's wire above its origin, in metres. */
+export const PHULJHADI_WIRE_BOTTOM = 0.05;
+/** Length of the phuljhadi's burning wire, in metres. */
+export const PHULJHADI_WIRE_LENGTH = 0.25;
 
 const CLAY = 0x9a5a34;
 const GERU = 0x9c3b22;
@@ -111,10 +123,11 @@ function fuseAt(g: THREE.Group, x: number, y: number, z: number): void {
 /** Phuljhadi: a grey-coated wire about 30 cm long with a bare handle end and a sparkle head. */
 function phuljhadi(): THREE.Group {
   const g = new THREE.Group();
-  part(g, new THREE.CylinderGeometry(0.002, 0.002, 0.25, 6), solid(0x8a9096, 0.45, 0.6), 0, 0.175, 0);
+  const wireMid = PHULJHADI_WIRE_BOTTOM + PHULJHADI_WIRE_LENGTH / 2;
+  part(g, new THREE.CylinderGeometry(0.002, 0.002, PHULJHADI_WIRE_LENGTH, 6), solid(0x8a9096, 0.45, 0.6), 0, wireMid, 0);
   part(g, new THREE.CylinderGeometry(0.0035, 0.0035, 0.05, 6), solid(0x6b6b6b, 0.4, 0.8), 0, 0.025, 0);
-  part(g, new THREE.SphereGeometry(0.007, 8, 6), solid(0xb9c2cc, 0.6), 0, 0.3, 0);
-  fuseAt(g, 0, 0.31, 0);
+  part(g, new THREE.SphereGeometry(0.007, 8, 6), solid(0xb9c2cc, 0.6), 0, PHULJHADI_WIRE_BOTTOM + PHULJHADI_WIRE_LENGTH, 0);
+  fuseAt(g, 0, PHULJHADI_WIRE_BOTTOM + PHULJHADI_WIRE_LENGTH + 0.01, 0);
   return g;
 }
 
@@ -167,7 +180,7 @@ function rocket(opts: ModelOptions): THREE.Group {
     ],
     12,
   );
-  if (opts.bottle ?? true) part(g, bottleGeo, glass, 0, 0, 0);
+  if (opts.bottle ?? true) part(g, bottleGeo, glass, 0, 0, 0).name = BOTTLE_NAME;
   part(g, new THREE.CylinderGeometry(0.008, 0.008, 0.03, 12), solid(GERU, 0.7), 0, 0.115, 0);
   part(g, new THREE.CylinderGeometry(0.0025, 0.0025, 0.25, 6), solid(BAMBOO, 0.8), 0, 0.255, 0);
   fuseAt(g, 0, 0.13, 0);
@@ -203,21 +216,34 @@ function sutli(): THREE.Group {
   return g;
 }
 
+/** Half the ladi's length along x, in metres; the laid curve runs from -LADI_HALF to +LADI_HALF. */
+const LADI_HALF = 0.6;
+
+/**
+ * Point on the ladi's laid curve at parameter `s` (0 at the lit end, 1 at the far end), written into `out` in
+ * the model's local space. Shared by the builder and the pops that walk the curve, so both agree exactly.
+ */
+export function ladiPoint(s: number, out: THREE.Vector3): THREE.Vector3 {
+  const x = -LADI_HALF + 2 * LADI_HALF * s;
+  const z = -0.1 * (1 - (x / LADI_HALF) ** 2);
+  return out.set(x, 0.003, z);
+}
+
 /** Ladi: about twenty tiny red tubes standing on a braided fuse laid as a gentle curve about 1.2 m long. */
 function ladi(): THREE.Group {
   const g = new THREE.Group();
   const tubeMat = solid(GERU, 0.7);
   const pts: THREE.Vector3[] = [];
-  const count = 20;
+  const count = LADI_TUBE_COUNT;
   for (let i = 0; i < count; i++) {
-    const x = -0.6 + (1.2 * i) / (count - 1);
-    const z = -0.1 * (1 - (x / 0.6) ** 2);
-    pts.push(new THREE.Vector3(x, 0.003, z));
-    part(g, new THREE.CylinderGeometry(0.007, 0.007, 0.022, 8), tubeMat, x, 0.014, z);
+    const p = ladiPoint(i / (count - 1), new THREE.Vector3());
+    pts.push(p);
+    // Tagged so the ladi can hide each tube as its pop goes off.
+    part(g, new THREE.CylinderGeometry(0.007, 0.007, 0.022, 8), tubeMat, p.x, 0.014, p.z).userData.ladiTube = true;
   }
-  const braid = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 80, 0.0018, 4, false);
-  part(g, braid, solid(0xb08a5a, 0.9), 0, 0, 0);
-  fuseAt(g, -0.6, 0.004, 0);
+  const braid = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), LADI_BRAID_SEGMENTS, 0.0018, 4, false);
+  part(g, braid, solid(0xb08a5a, 0.9), 0, 0, 0).name = LADI_BRAID_NAME;
+  fuseAt(g, -LADI_HALF, 0.004, 0);
   return g;
 }
 

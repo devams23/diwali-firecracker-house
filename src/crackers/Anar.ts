@@ -15,8 +15,6 @@ const PEAK_RATE = 900;
 const FLASH_INTERVAL = 0.15;
 /** Seconds between light-smoke puffs. */
 const SMOKE_INTERVAL = 0.5;
-/** Height of the nozzle above the pot's base, in metres. */
-const NOZZLE_HEIGHT = 0.04;
 /** World up, used as the fountain's axis. */
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -83,9 +81,11 @@ export class Anar extends Cracker {
     return false;
   }
 
-  /** Moves the nozzle point to the pot's mouth, in world space, without allocating. */
+  /**
+   * Moves the nozzle point to the apex of the pot's cone, in world space, without allocating. The apex is the
+   * fuse marker, so the sparks leave the cone's tip rather than a point inside its 0.1 m body.
+   */
   private updateNozzle(): void {
-    this.object.getWorldPosition(this.nozzle);
-    this.nozzle.y += NOZZLE_HEIGHT;
+    this.fuseWorld(this.nozzle);
   }
 }
