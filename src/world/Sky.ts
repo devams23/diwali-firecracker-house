@@ -560,15 +560,6 @@ export class Sky implements Updatable {
     }
   }
 
-  /**
-   * Advances the rockets and bursts by `seconds` of game time in fixed steps, without waiting for frames. The debug
-   * hook uses it so a salvo is already open when a slow software-rendered frame is drawn.
-   */
-  advance(seconds: number): void {
-    const step = 1 / 30;
-    for (let t = 0; t < seconds; t += step) this.stepRockets(step);
-  }
-
   /** How many shells are bursting right now, that is, opened and not yet faded; used to time a capture. */
   burstingCount(): number {
     return this.rockets.filter((r) => r.active && !r.rising).length;

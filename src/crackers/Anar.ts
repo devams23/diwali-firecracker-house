@@ -9,8 +9,19 @@ import type { FxContext } from '../fx/FxContext';
 const ANAR_SECONDS = 9;
 /** Seconds for the spark rate to climb from zero to its peak. */
 const RAMP_SECONDS = 2;
-/** Sparks per second at full fountain. */
-const PEAK_RATE = 900;
+/** Sparks per second at full fountain; high enough that the cone reads as a dense spray of separate sparks. */
+const PEAK_RATE = 1800;
+/** Launch speed range in m/s: about 2 to 3.5 m up once air drag takes its share, so the fountain rises clearly. */
+const LAUNCH_SPEED: [number, number] = [6.5, 8];
+/** Half-angle of the spray cone in radians, wide enough to read as a fountain rather than a single jet. */
+const CONE = 0.3;
+/** Gold and silver spark colours; each spark picks one, so the fountain shows a mix of both. */
+const SPARK_COLORS = [0xffc24a, 0xffdf8a, 0xe8eef8, 0xffffff];
+/** Light drag for the sparks, so they keep their height and fall in arcs. */
+const SPARK_DRAG = 0.3;
+/** Point glow intensity and reach of the warm light: small, so it lights the spray without washing out the sparks. */
+const GLOW_INTENSITY = 1.2;
+const GLOW_DISTANCE = 3.5;
 /** Seconds between re-triggering the warm light; each flash lasts a little longer than this. */
 const FLASH_INTERVAL = 0.15;
 /** Seconds between light-smoke puffs. */
@@ -55,12 +66,13 @@ export class Anar extends Cracker {
       this.fx.sparks.emit({
         position: this.nozzle,
         direction: UP,
-        speed: [6, 9],
-        spread: 0.22,
+        speed: LAUNCH_SPEED,
+        spread: CONE,
         count: n,
-        colors: [0xffc860, 0xfff4e0],
-        life: [0.8, 1.6],
-        size: [0.02, 0.04],
+        colors: SPARK_COLORS,
+        life: [0.9, 1.7],
+        size: [0.018, 0.028],
+        drag: SPARK_DRAG,
         crackle: true,
       });
     }
@@ -69,7 +81,7 @@ export class Anar extends Cracker {
     this.flashAcc += dt;
     if (this.flashAcc >= FLASH_INTERVAL) {
       this.flashAcc -= FLASH_INTERVAL;
-      this.fx.flashes.flash(this.nozzle, 0xffc860, 4, 10, FLASH_INTERVAL + 0.05);
+      this.fx.flashes.flash(this.nozzle, 0xffc860, GLOW_INTENSITY, GLOW_DISTANCE, FLASH_INTERVAL + 0.05);
     }
 
     // Light smoke rising from the pot.

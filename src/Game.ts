@@ -312,6 +312,7 @@ export class Game {
         state: () => ({ ...this.state }),
         pickupAll: () => this.debugPickupAll(),
         skyShow: (yaw) => this.debugSkyShow(yaw),
+        advance: (seconds) => this.engine.advance(seconds),
         skyBursting: () => this.sky.burstingCount(),
       });
     }
@@ -705,7 +706,7 @@ export class Game {
    */
   private debugSkyShow(yaw: number): void {
     this.sky.salvo(yaw);
-    this.sky.advance(DEBUG_SKY_LEAD_SECONDS);
+    this.engine.advance(DEBUG_SKY_LEAD_SECONDS);
   }
 
   /** Debug hook: lights every ground cracker that is still unlit. */

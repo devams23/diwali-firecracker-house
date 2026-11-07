@@ -20,6 +20,8 @@ export interface DiwaliDebug {
   skyShow(yaw: number): void;
   /** How many shells are bursting right now; a capture polls this to catch the bright window. */
   skyBursting(): number;
+  /** Fast-forwards every system by this many game seconds without rendering, so a capture lands on a later moment. */
+  advance(seconds: number): void;
 }
 
 declare global {

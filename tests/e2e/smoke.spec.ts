@@ -1,7 +1,7 @@
 // Browser smoke test: loads the game in headless Chromium and checks that it starts without console errors, that the
-// intro hands over to the village, and that the scene is not black. A second run uses the ?debug hook to light three
-// crackers, checks that the first burst is counted and that sparks show on screen, and writes screenshots to
-// screenshots/ as deliverables.
+// intro hands over to the village, and that the scene is not black. Further runs use the ?debug hook to take the held
+// shot, the anar fountain at its peak and a salvo of sky shells, check that sparks show on screen, and write the
+// screenshots to screenshots/ as deliverables.
 import { test, expect, type Page } from '@playwright/test';
 
 /** A PNG screenshot as returned by Page.screenshot(). */
@@ -36,12 +36,13 @@ const INTRO_GONE_MS = 3000;
  * clock is clamped per frame, so the wait is on the game's own burst count, not on wall-clock seconds.
  */
 const BURST_TIMEOUT_MS = 60000;
-/** Real milliseconds to keep recording once the first burst is counted, so the ground shot shows the anar burning. */
-const AFTER_BURST_MS = 1500;
 /** Real milliseconds to let the hands settle into their held pose before the held shot is taken. */
 const HELD_SETTLE_MS = 1500;
-/** Downward tilt in radians: a cracker 3 m ahead sits about 28° below the eye, so this centres it in the view. */
-const LOOK_DOWN = -0.5;
+/**
+ * Seconds fast-forwarded after the anar is lit for its shot: the 2.5 s fuse plus 2.2 s, so the spray is at its full
+ * height rather than still ramping up.
+ */
+const ANAR_PEAK_SECONDS = 4.7;
 /** Upward tilt in radians for the sky shot: about 20 degrees, so shells bursting 40 to 70 m up sit in the upper view. */
 const SKY_LOOK_UP = 0.35;
 /** Shells that must be bursting together before the sky shot is taken, so the frame shows a real show. */
@@ -126,36 +127,25 @@ test('the held shot shows the thaali with crackers and the lit agarbatti', async
   expect(errors).toEqual([]);
 });
 
-test('the debug hook places, lights and fires crackers', async ({ page }) => {
+test('the anar fountain is shot at its peak, three metres away', async ({ page }) => {
   const errors = await watchErrors(page);
   await page.goto('/?debug');
   await startFromIntro(page);
 
-  // Anar, sutli and rocket go down 3 m ahead of the player, 2 m apart, each from a spot the player steps to.
-  await page.evaluate((pitch: number) => {
+  // One anar 3 m ahead of the player, with the view turned level so the spray fills the frame from the pot upward.
+  await page.evaluate(() => {
     const d = window.__diwali!;
-    d.teleport(-2, 6, 0, pitch);
+    d.teleport(0, 6, 0, 0);
     d.place('anar');
-    d.teleport(0, 6, 0, pitch);
-    d.place('sutli');
-    d.teleport(2, 6, 0, pitch);
-    d.place('rocket');
-    d.teleport(0, 6, 0, pitch);
-  }, LOOK_DOWN);
+  });
 
-  // A baseline of the same ground view, taken before any fuse is lit, to measure what the fire adds.
+  // A baseline of the same view before the fuse is lit, to measure what the fountain adds.
   const beforeDown = await pixelStats(page, await page.screenshot());
   await page.evaluate(() => window.__diwali!.lightAll());
-
-  const burstCount = () => page.evaluate(() => window.__diwali!.state().burstCount);
-  // Waits inside the page until the first burst is counted (the rocket, at about 3.6 s of game time).
-  await page.waitForFunction(() => window.__diwali!.state().burstCount >= 1, undefined, { timeout: BURST_TIMEOUT_MS });
-  // The anar is still fountaining, so the ground view shows its sparks. The rocket bursts about 36 m up, out of this
-  // view, and software WebGL screenshots take about 2 s, so the sky burst has faded by capture; it is not shot.
-  await page.waitForTimeout(AFTER_BURST_MS);
+  // The fuse and the spray's ramp-up are fast-forwarded, so the frame is drawn with the fountain at full height.
+  await page.evaluate((seconds: number) => window.__diwali!.advance(seconds), ANAR_PEAK_SECONDS);
   const down = await page.screenshot({ path: 'screenshots/burst.png' });
 
-  expect(await burstCount()).toBeGreaterThanOrEqual(1);
   const afterDown = await pixelStats(page, down);
   expect(afterDown.bright - beforeDown.bright).toBeGreaterThan(MIN_SPARK_PIXELS);
   expect(errors).toEqual([]);

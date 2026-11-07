@@ -79,7 +79,9 @@ const FRAG = /* glsl */ `
     float d = dot(p, p);
     if (d > 1.0) discard;
     float soft = 1.0 - d;
-    gl_FragColor = vec4(vColor, vAlpha * soft * soft);
+    // A hot core over a soft halo: each spark reads as a distinct bright point rather than a blur.
+    float core = 1.0 - smoothstep(0.0, 0.3, d);
+    gl_FragColor = vec4(vColor * (1.0 + core), vAlpha * (soft * soft * 0.5 + core));
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }

@@ -84,6 +84,18 @@ export class Engine {
     });
   }
 
+  /**
+   * Fast-forwards every system by `seconds` without rendering, in fixed 1/30 s slices, as if that many frames had run.
+   * Debug and test use only: software WebGL draws too slowly to wait out a fuse or a climb in real time.
+   */
+  advance(seconds: number): void {
+    const step = 1 / 30;
+    for (let t = 0; t < seconds; t += step) {
+      this.elapsed += step;
+      for (const u of this.updatables) u.update(step, this.elapsed);
+    }
+  }
+
   /** Copies the device-pixel scale of the current view into the shared viewport. */
   private syncViewport(): void {
     viewport.pixelRatio = Math.min(window.devicePixelRatio, 2);
