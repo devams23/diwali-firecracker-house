@@ -1,6 +1,7 @@
-// Stylised first-person hands: a cream kurta sleeve with its cuff at the wrist, warm brown skin from the wrist down,
-// a rounded palm with four finger capsules and a thumb. They are parented to the player camera; the right hand
-// grips the agarbatti and jabs forward to light fuses, and the left hand cradles the thaali.
+// Stylised first-person hands: a slim cream kurta sleeve that flares open toward the bottom of the screen, warm
+// brown skin from the wrist down, a rounded palm and two-segment fingers curled into a loose grip, with a thumb.
+// They are parented to the player camera; the right hand grips the agarbatti and jabs forward to light fuses, and
+// the left hand cradles the thaali. With the left hand empty it rests lower, partly out of frame.
 // The caller must add the camera to the scene, since children of a camera only render when it is in the scene.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -8,27 +9,49 @@ import type { Updatable } from '../core/Engine';
 
 /** Off-white kurta cream for the sleeves and cuffs; warmer than white so the blue night light does not grey it. */
 const KURTA = 0xd9c49a;
-/** Warm brown skin for the hands and wrists. */
-const SKIN = 0xb07a52;
+/** Natural warm brown skin for the hands and wrists. */
+const SKIN = 0x9a6a4a;
 /** Camera-local rest position of the right wrist; well clear of the 0.05 m near plane. */
-const RIGHT_BASE = new THREE.Vector3(0.30, -0.34, -0.5);
+const RIGHT_BASE = new THREE.Vector3(0.3, -0.34, -0.5);
 /**
- * Camera-local rest position of the left wrist. Pulled forward and up so the near rim of a plate held here
- * sits within the 35° half-field of view below the centre of the screen.
+ * Camera-local rest position of the left wrist when it holds the thaali. Pulled forward and up so the near rim of a
+ * plate held here sits within the 35° half-field of view below the centre of the screen.
  */
 const LEFT_BASE = new THREE.Vector3(-0.32, -0.32, -0.6);
-/** Radius of the forearm sleeve, in metres. */
-const SLEEVE_RADIUS = 0.036;
+/**
+ * Camera-local rest position of the left wrist when empty: lower and further out, so the hand sits partly below the
+ * bottom edge of the frame.
+ */
+const LEFT_REST = new THREE.Vector3(-0.3, -0.42, -0.5);
+/** How fast the left hand glides between its held and empty rest positions, per second. */
+const LEFT_SETTLE = 6;
+/** Radius of the sleeve at the wrist end, in metres. */
+const SLEEVE_WRIST_RADIUS = 0.028;
+/** Radius of the sleeve's open end, nearest the camera, in metres; the cloth flares a little toward it. */
+const SLEEVE_OPEN_RADIUS = 0.04;
+/** Length of the sleeve from the wrist toward the camera, in metres. Long enough to leave the bottom of the frame. */
+const SLEEVE_LENGTH = 0.26;
 /** Radius of the cream cuff band at the wrist, slightly wider than the sleeve, in metres. */
-const CUFF_RADIUS = 0.040;
+const CUFF_RADIUS = 0.033;
 /** Radius of the wrist skin where it meets the sleeve, in metres. */
-const WRIST_RADIUS = 0.030;
-/** Uniform scale of both hand groups; the grips and held items are children, so they scale with the hands. */
-const HAND_SCALE = 1.3;
+const WRIST_RADIUS = 0.026;
+/** Uniform scale of both hand groups; about three quarters of the earlier size. */
+const HAND_SCALE = 0.975;
 /** Radius of each finger and the thumb, in metres. */
-const FINGER_RADIUS = 0.013;
-/** Straight length of each finger and the thumb, in metres. */
-const FINGER_LENGTH = 0.05;
+const FINGER_RADIUS = 0.012;
+/** Straight length of the proximal and distal finger segments, in metres. */
+const FINGER_SEG_1 = 0.026;
+const FINGER_SEG_2 = 0.02;
+/** Curl of the right fingers over the grip (radians): the first segment at about 45°, the second about 70° in all. */
+const RIGHT_CURL: [number, number] = [-0.78, -0.44];
+/** Curl of the left fingers up over the plate's near rim (radians): about 40° then 65° in all. */
+const LEFT_CURL: [number, number] = [0.7, 0.4];
+/**
+ * Pose of each hand relative to its wrist (radians). The palms turn so the back of the hand faces the camera and
+ * up, the way a hand looks when held in front of the face; the left palm still cups the plate from below.
+ */
+const RIGHT_POSE = new THREE.Euler(0.35, -0.2, 0.3);
+const LEFT_POSE = new THREE.Euler(0.2, 0.1, -0.3);
 /** Warm fill light at the camera so the hands and the thaali stay readable in any lighting. */
 const FILL_COLOR = 0xffb070;
 const POKE_TIME = 0.25;
@@ -57,6 +80,8 @@ export class Hands implements Updatable {
   private readonly leftGrip = new THREE.Group();
   private readonly swayTarget = new THREE.Vector2();
   private readonly swayPos = new THREE.Vector2();
+  private readonly leftPos = LEFT_REST.clone();
+  private leftFull = false;
   private pokeLeft = 0;
 
   /** Builds both hands and attaches them to the camera; the camera itself must be added to the scene. */
@@ -70,40 +95,44 @@ export class Hands implements Updatable {
     const skin = new THREE.MeshStandardMaterial({
       color: SKIN,
       roughness: 0.6,
-      emissive: 0x3a1c0c,
-      emissiveIntensity: 0.5,
+      emissive: SKIN,
+      emissiveIntensity: 0.25,
     });
 
     this.right.position.copy(RIGHT_BASE);
-    this.left.position.copy(LEFT_BASE);
+    this.left.position.copy(LEFT_REST);
     this.right.scale.setScalar(HAND_SCALE);
     this.left.scale.setScalar(HAND_SCALE);
-    this.rightGrip.position.set(0, 0.02, -0.1);
-    // The plate underside rests on the palm top (y = 0), so the thaali sits on the palm instead of floating.
-    this.leftGrip.position.set(0, 0, -0.1);
 
-    // Right hand: the wrist is the origin, the forearm runs back toward the viewer (+z), and the palm closes
-    // around the agarbatti grip in front of it. Four fingers curl over the grip, the thumb sits on the inner side.
-    this.right.add(
+    // Each hand has a pose group, so the palm, fingers, grip and sleeve all turn together around the wrist.
+    const rightPose = new THREE.Group();
+    rightPose.rotation.copy(RIGHT_POSE);
+    this.rightGrip.position.set(0, 0.02, -0.1);
+    rightPose.add(
       ...sleeveAndWrist(kurta, skin),
       palm(0.09, 0.035, 0.1, skin, 0, 0, -0.06),
       this.rightGrip,
     );
     for (let i = 0; i < 4; i++) {
-      this.right.add(limb(FINGER_RADIUS, FINGER_LENGTH, skin, -0.039 + i * 0.026, 0.028, -0.13, 0.5));
+      rightPose.add(finger(skin, -0.039 + i * 0.026, 0.024, -0.13, RIGHT_CURL));
     }
-    this.right.add(limb(FINGER_RADIUS, FINGER_LENGTH, skin, -0.05, 0.02, -0.09, 0, 0.5));
+    rightPose.add(thumb(skin, -0.05, 0.016, -0.09, 0.5));
+    this.right.add(rightPose);
 
-    // Left hand: palm flat under the thaali, four fingers curling up over its near rim, thumb on the outer side.
-    this.left.add(
+    // Left hand: palm flat under the thaali, fingers curling up over its near rim, thumb on the outer side.
+    const leftPose = new THREE.Group();
+    leftPose.rotation.copy(LEFT_POSE);
+    this.leftGrip.position.set(0, 0, -0.1);
+    leftPose.add(
       ...sleeveAndWrist(kurta, skin),
       palm(0.13, 0.03, 0.11, skin, 0.005, -0.015, -0.07),
       this.leftGrip,
     );
     for (let i = 0; i < 4; i++) {
-      this.left.add(limb(FINGER_RADIUS, FINGER_LENGTH, skin, -0.045 + i * 0.03, 0.012, -0.16, -0.35));
+      leftPose.add(finger(skin, -0.045 + i * 0.03, 0.006, -0.16, LEFT_CURL));
     }
-    this.left.add(limb(FINGER_RADIUS, FINGER_LENGTH, skin, 0.075, 0.02, -0.1, 0, -0.5));
+    leftPose.add(thumb(skin, 0.075, 0.012, -0.1, -0.5));
+    this.left.add(leftPose);
 
     // Hands skip frustum culling (their bounds sit at the screen edge) and draw after other opaque
     // geometry; depth testing still hides them behind anything nearer, which is the desired result.
@@ -140,6 +169,7 @@ export class Hands implements Updatable {
   /** Puts an object (the thaali) into the left hand, or clears the hand when given null. */
   holdLeft(obj: THREE.Object3D | null): void {
     this.leftGrip.clear();
+    this.leftFull = obj !== null;
     if (obj) {
       obj.position.set(0, 0, 0);
       obj.rotation.set(0.2, 0, 0);
@@ -158,7 +188,7 @@ export class Hands implements Updatable {
     this.swayTarget.y = clamp(this.swayTarget.y - mouseDy * SWAY_GAIN, SWAY_MAX);
   }
 
-  /** Applies the idle breathing bob, the mouse-sway lag and the poke jab to the two hand groups. */
+  /** Applies the idle breathing bob, the mouse-sway lag, the poke jab and the left hand's rest to the two groups. */
   update(dt: number, t: number): void {
     this.swayTarget.multiplyScalar(Math.exp(-SWAY_DECAY * dt));
     this.swayPos.lerp(this.swayTarget, 1 - Math.exp(-SWAY_FOLLOW * dt));
@@ -172,30 +202,40 @@ export class Hands implements Updatable {
       jab = Math.sin((1 - this.pokeLeft / POKE_TIME) * Math.PI) * POKE_DIST;
     }
 
+    // The left hand rises to the plate when one is held and sinks out of frame when the hand is empty.
+    const target = this.leftFull ? LEFT_BASE : LEFT_REST;
+    this.leftPos.lerp(target, 1 - Math.exp(-LEFT_SETTLE * dt));
+
     this.right.position.set(
       RIGHT_BASE.x + this.swayPos.x + breathX,
       RIGHT_BASE.y + this.swayPos.y + breathY,
       RIGHT_BASE.z - jab,
     );
     this.left.position.set(
-      LEFT_BASE.x + this.swayPos.x * 0.6 + breathX * 0.5,
-      LEFT_BASE.y + this.swayPos.y * 0.6 + breathY * 0.6,
-      LEFT_BASE.z,
+      this.leftPos.x + this.swayPos.x * 0.6 + breathX * 0.5,
+      this.leftPos.y + this.swayPos.y * 0.6 + breathY * 0.6,
+      this.leftPos.z,
     );
   }
 }
 
 /**
- * The forearm parts shared by both hands: the cream sleeve running back toward the viewer, the cuff band at the
- * wrist, and the short skin wrist that joins the sleeve to the palm. All sit on the wrist axis (the z axis).
+ * The forearm parts shared by both hands: the slim cream sleeve running back toward the viewer and flaring open at
+ * its far end, the cuff band at the wrist, and the short skin wrist that joins the sleeve to the palm. All sit on the
+ * wrist axis (the z axis).
  */
 function sleeveAndWrist(kurta: THREE.Material, skin: THREE.Material): THREE.Mesh[] {
-  const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(SLEEVE_RADIUS, SLEEVE_RADIUS, 0.16, 16), kurta);
+  // CylinderGeometry's first radius is the top (+y end); a quarter turn about x points that end at the camera (+z),
+  // so the open end flares toward the viewer and the narrow end sits at the wrist.
+  const sleeve = new THREE.Mesh(
+    new THREE.CylinderGeometry(SLEEVE_OPEN_RADIUS, SLEEVE_WRIST_RADIUS, SLEEVE_LENGTH, 16, 1, true),
+    kurta,
+  );
   sleeve.rotation.x = Math.PI / 2;
-  sleeve.position.set(0, 0, 0.13);
-  const cuff = new THREE.Mesh(new THREE.CylinderGeometry(CUFF_RADIUS, CUFF_RADIUS, 0.03, 16), kurta);
+  sleeve.position.set(0, 0, SLEEVE_LENGTH / 2);
+  const cuff = new THREE.Mesh(new THREE.CylinderGeometry(CUFF_RADIUS, CUFF_RADIUS, 0.012, 16), kurta);
   cuff.rotation.x = Math.PI / 2;
-  cuff.position.set(0, 0, 0.03);
+  cuff.position.set(0, 0, 0.02);
   const wrist = limb(WRIST_RADIUS, 0.05, skin, 0, 0, 0);
   return [sleeve, cuff, wrist];
 }
@@ -211,23 +251,66 @@ function palm(w: number, h: number, d: number, mat: THREE.Material, x: number, y
 }
 
 /**
- * A capsule limb (a finger, the thumb or the wrist) of the given radius and straight length at a position. The
- * capsule lies along the z axis, pointing forward from the wrist, and `tiltX` and `tiltZ` (radians) bend it: a finger
- * tilts down over the grip, and the thumb angles across the palm.
+ * One finger: two capsule segments joined at knuckles. The root sits at the palm's front edge and each joint has its
+ * own curl, so the finger bends into a loose grip instead of lying flat. `curl` holds the two joint angles in radians.
  */
-function limb(
-  radius: number,
-  length: number,
+function finger(
   mat: THREE.Material,
   x: number,
   y: number,
   z: number,
-  tiltX = 0,
-  tiltZ = 0,
-): THREE.Mesh {
+  curl: [number, number],
+): THREE.Group {
+  const root = new THREE.Group();
+  root.position.set(x, y, z);
+  root.rotation.x = curl[0];
+  const seg1 = segment(FINGER_RADIUS, FINGER_SEG_1, mat);
+  root.add(seg1.mesh);
+  const joint = new THREE.Group();
+  joint.position.z = -seg1.span;
+  joint.rotation.x = curl[1];
+  const seg2 = segment(FINGER_RADIUS, FINGER_SEG_2, mat);
+  joint.add(seg2.mesh);
+  root.add(joint);
+  return root;
+}
+
+/** The thumb: a two-segment limb angled across the palm from its base, sitting at a given side of the hand. */
+function thumb(mat: THREE.Material, x: number, y: number, z: number, roll: number): THREE.Group {
+  const root = new THREE.Group();
+  root.position.set(x, y, z);
+  root.rotation.set(-0.35, 0, roll);
+  const seg1 = segment(FINGER_RADIUS, FINGER_SEG_1, mat);
+  root.add(seg1.mesh);
+  const joint = new THREE.Group();
+  joint.position.z = -seg1.span;
+  joint.rotation.x = -0.3;
+  const seg2 = segment(FINGER_RADIUS, FINGER_SEG_2, mat);
+  joint.add(seg2.mesh);
+  root.add(joint);
+  return root;
+}
+
+/**
+ * A capsule segment that starts at the local origin and points along -z. The mesh is centred so its near end sits on
+ * the origin; `span` is the distance from the origin to the far end, where the next joint attaches.
+ */
+function segment(radius: number, length: number, mat: THREE.Material): { mesh: THREE.Mesh; span: number } {
   const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(radius, length, 4, 8), mat);
   // CapsuleGeometry runs along y; a quarter turn about x lays it along z.
-  mesh.rotation.set(Math.PI / 2 + tiltX, 0, tiltZ);
+  mesh.rotation.x = Math.PI / 2;
+  const span = length + 2 * radius;
+  mesh.position.z = -span / 2;
+  return { mesh, span };
+}
+
+/**
+ * A capsule limb (the wrist) of the given radius and straight length at a position. The capsule lies along the z axis,
+ * pointing forward from the wrist.
+ */
+function limb(radius: number, length: number, mat: THREE.Material, x: number, y: number, z: number): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(radius, length, 4, 8), mat);
+  mesh.rotation.set(Math.PI / 2, 0, 0);
   mesh.position.set(x, y, z);
   return mesh;
 }

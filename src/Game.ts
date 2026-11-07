@@ -305,6 +305,7 @@ export class Game {
         lightAll: () => this.debugLightAll(),
         teleport: (x, z, yaw, pitch) => this.debugTeleport(x, z, yaw, pitch),
         state: () => ({ ...this.state }),
+        pickupAll: () => this.debugPickupAll(),
       });
     }
   }
@@ -674,6 +675,21 @@ export class Game {
     this.player.forward(this.tmpForward);
     const spot = placementPoint(this.player.position, this.tmpForward, DEBUG_PLACE_REACH);
     this.crackers.add(createCracker(kind, this.fx, spot, this.player.yaw));
+  }
+
+  /**
+   * Debug hook: puts the thaali in the left hand with a few crackers on it, and gives the player the agarbatti already
+   * lit in the right hand, so a screenshot can show the held state without playing through the pickups.
+   */
+  private debugPickupAll(): void {
+    this.pickUpThaali();
+    for (const kind of ['anar', 'chakri', 'laxmi', 'sutli'] as CrackerKind[]) this.thaali.inventory.add(kind);
+    this.thaali.refresh();
+    this.refreshStrip();
+    this.hasAgarbatti = true;
+    this.hands.holdRight(this.agarbatti.object);
+    this.agarbattiLit = true;
+    this.agarbatti.light();
   }
 
   /** Debug hook: lights every ground cracker that is still unlit. */

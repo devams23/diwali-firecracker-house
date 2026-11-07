@@ -38,6 +38,8 @@ const INTRO_GONE_MS = 3000;
 const BURST_TIMEOUT_MS = 60000;
 /** Real milliseconds to keep recording once the first burst is counted, so the ground shot shows the anar burning. */
 const AFTER_BURST_MS = 1500;
+/** Real milliseconds to let the hands settle into their held pose before the held shot is taken. */
+const HELD_SETTLE_MS = 1500;
 /** Downward tilt in radians: a cracker 3 m ahead sits about 28° below the eye, so this centres it in the view. */
 const LOOK_DOWN = -0.5;
 /** Upward tilt in radians for the sky shot: about 25 degrees, so a burst 30 to 40 m up sits in the upper view. */
@@ -104,6 +106,21 @@ test('loads without console errors, starts from the intro and renders a lit vill
   const aangan = await page.screenshot({ path: 'screenshots/aangan.png' });
   expect((await pixelStats(page, aangan)).mean).toBeGreaterThan(MIN_MEAN_LUMINANCE);
 
+  expect(errors).toEqual([]);
+});
+
+test('the held shot shows the thaali with crackers and the lit agarbatti', async ({ page }) => {
+  const errors = await watchErrors(page);
+  await page.goto('/?debug');
+  await startFromIntro(page);
+
+  // The thaali on the left palm with crackers on it, and the agarbatti lit in the right fist. The hands ease into
+  // their held pose over a few frames, so the shot waits briefly before it is taken.
+  await page.evaluate(() => window.__diwali!.pickupAll());
+  await page.waitForTimeout(HELD_SETTLE_MS);
+  const held = await page.screenshot({ path: 'screenshots/held.png' });
+
+  expect((await pixelStats(page, held)).mean).toBeGreaterThan(MIN_MEAN_LUMINANCE);
   expect(errors).toEqual([]);
 });
 

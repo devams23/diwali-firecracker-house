@@ -14,6 +14,8 @@ export interface DiwaliDebug {
   teleport(x: number, z: number, yaw: number, pitch?: number): void;
   /** A copy of the gameplay state the prompts use, including the finale burst count. */
   state(): PlayerState;
+  /** Picks up the thaali with four crackers on it, and holds the agarbatti already lit in the right hand. */
+  pickupAll(): void;
 }
 
 declare global {
