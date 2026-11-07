@@ -7,8 +7,8 @@ import { PALETTE } from '../core/palette';
 import type { CollisionWorld } from '../core/Collision';
 import { CRACKER_ORDER, CRACKERS, type CrackerKind } from '../crackers/catalog';
 import { CLAY } from '../items/Diya';
-import { DIYA_SPACING, GATE_HALF, INNER_X, SOUTH_INNER_Z, WALL_H, WALL_T, jitteredBox, plasterMaterial, woodMaterial } from './Aangan';
-import type { HouseAnchors } from './House';
+import { DIYA_SPACING, FACE_CLEARANCE, GATE_HALF, INNER_X, SOUTH_INNER_Z, WALL_H, WALL_T, jitteredBox, plasterMaterial, woodMaterial } from './Aangan';
+import { TAKHT_H, type HouseAnchors } from './House';
 import { rng, tile, type Textures } from './textures';
 
 /** Cardboard of the cracker boxes, muted to match the lime and earth tones. */
@@ -16,10 +16,6 @@ const CARDBOARD = 0xb08a58;
 const CARDBOARD_INSIDE = 0x3a2a18;
 const TULSI_GREEN = 0x4f8a3c;
 const IRON = 0x3a3d44;
-/** Takht top in world space: the verandah floor (0.3) plus the 0.45 m plinth House builds. */
-const TAKHT_TOP = 0.75;
-const TAKHT_X = -3.5;
-const TAKHT_Z = -7.8;
 const CHARPAI_L = 1.9;
 const CHARPAI_W = 1.0;
 
@@ -233,7 +229,7 @@ export function buildProps(
   buildCharpai(scene, world, tex, rope, -6, 2);
   buildThaali(scene, charpaiThaaliPos);
 
-  const takhtBoxes = buildTakhtBoxes(scene);
+  const takhtBoxes = buildTakhtBoxes(scene, house.takhtPosition);
   buildMatkas(scene, world);
   buildLota(scene, world);
   buildHandPump(scene, world, tex);
@@ -267,7 +263,7 @@ export function extraDiyaSpots(): THREE.Vector3[] {
   for (let i = 0; i < 15; i++) {
     const x = -8.4 + i * DIYA_SPACING;
     if (Math.abs(x) < GATE_HALF + 0.6) continue;
-    out.push(new THREE.Vector3(x, 0.06, 6.3));
+    out.push(new THREE.Vector3(x, 0, 6.3));
   }
   return out;
 }
@@ -285,7 +281,7 @@ function buildTulsiChaura(scene: THREE.Scene, world: CollisionWorld, tex: Textur
     new THREE.PlaneGeometry(0.7, 0.5),
     new THREE.MeshStandardMaterial({ map: motifTexture(), roughness: 0.9, metalness: 0 }),
   );
-  motif.position.set(0, 0.5, 0.506);
+  motif.position.set(0, 0.5, 0.5 + FACE_CLEARANCE);
   scene.add(motif);
 
   // Diya ledge: a shelf the main diya and the agarbatti stand sit on, top flush with y = 0.95.
@@ -453,7 +449,7 @@ function buildThaali(scene: THREE.Scene, pos: THREE.Vector3): void {
 }
 
 /** Cracker boxes on the takht: open cardboard boxes, one per kind, with a printed label on the south end. */
-function buildTakhtBoxes(scene: THREE.Scene): PropsResult['takhtBoxes'] {
+function buildTakhtBoxes(scene: THREE.Scene, takht: THREE.Vector3): PropsResult['takhtBoxes'] {
   const r = rng(616);
   const out: PropsResult['takhtBoxes'] = [];
   CRACKER_ORDER.forEach((kind, i) => {
@@ -467,8 +463,8 @@ function buildTakhtBoxes(scene: THREE.Scene): PropsResult['takhtBoxes'] {
     // Box faces in BoxGeometry order: +x, -x, +y (open top), -y, +z (label end), -z.
     const mats = [cardboard, cardboard, inside, cardboard, label, cardboard];
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.11, 0.46), mats);
-    const x = TAKHT_X + (i - (CRACKER_ORDER.length - 1) / 2) * 0.15;
-    box.position.set(x, TAKHT_TOP + 0.055, TAKHT_Z);
+    const x = takht.x + (i - (CRACKER_ORDER.length - 1) / 2) * 0.15;
+    box.position.set(x, takht.y + TAKHT_H + 0.055, takht.z);
     // Slight hand-placed turn so the row does not look machined.
     box.rotation.y = (r() - 0.5) * 0.1;
     scene.add(box);

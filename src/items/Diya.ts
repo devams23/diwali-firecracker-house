@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import type { Updatable } from '../core/Engine';
 import { PALETTE } from '../core/palette';
+import { viewport } from '../core/viewport';
 
 /** Terracotta of the bowl; not in the shared palette because only clay uses it. */
 export const CLAY = 0x9a5a34;
@@ -235,8 +236,8 @@ export class DiyaField implements Updatable {
       fragmentShader: FIELD_FRAG,
       uniforms: {
         uTime: { value: 0 },
-        // Pixels per metre at 1 m distance for a ~70 degree vertical FOV at 720 px height.
-        uPxScale: { value: 500 },
+        // Overwritten each frame from the shared viewport; this is only the value before the first frame.
+        uPxScale: { value: viewport.pxPerMetre },
         uColor: { value: new THREE.Color(PALETTE.flame) },
       },
       transparent: true,
@@ -246,8 +247,9 @@ export class DiyaField implements Updatable {
     scene.add(new THREE.Points(geo, this.material));
   }
 
-  /** Feeds the shared clock to the flame shader. */
+  /** Feeds the shared clock and the viewport pixel scale to the flame shader. */
   update(_dt: number, t: number): void {
     this.material.uniforms.uTime.value = t;
+    this.material.uniforms.uPxScale.value = viewport.pxPerMetre;
   }
 }

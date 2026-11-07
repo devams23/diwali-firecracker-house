@@ -6,6 +6,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { PALETTE } from './palette';
+import { viewport } from './viewport';
 
 /** Anything that needs per-frame updates; dt is seconds (clamped), t is total elapsed seconds. */
 export interface Updatable {
@@ -58,6 +59,7 @@ export class Engine {
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
+    this.syncViewport();
     window.addEventListener('resize', () => this.resize());
   }
 
@@ -81,6 +83,13 @@ export class Engine {
     });
   }
 
+  /** Copies the device-pixel scale of the current view into the shared viewport. */
+  private syncViewport(): void {
+    viewport.pixelRatio = Math.min(window.devicePixelRatio, 2);
+    viewport.pxPerMetre =
+      this.renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)));
+  }
+
   private size(): { width: number; height: number } {
     const width = this.container.clientWidth || window.innerWidth;
     const height = this.container.clientHeight || window.innerHeight;
@@ -94,5 +103,6 @@ export class Engine {
     this.bloom.setSize(width, height);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.syncViewport();
   }
 }

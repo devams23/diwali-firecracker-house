@@ -24,6 +24,8 @@ const BACK_Z = -11;
 const WALL_H = 3.2;
 const HALF_W = 9;
 const VERANDAH_H = 0.3;
+/** Height of the wooden takht plinth above the verandah floor, in metres. */
+export const TAKHT_H = 0.45;
 const VERANDAH_FRONT_Z = -7;
 const POST_Z = -7.15;
 const POST_X = [-5.5, -3, -1.4, 1.4, 3, 5.5];
@@ -404,8 +406,8 @@ function buildDecals(scene: THREE.Scene, tex: Textures): void {
 
 /** Wooden takht on the verandah, the plinth that will hold the cracker boxes. */
 function buildTakht(scene: THREE.Scene, world: CollisionWorld, tex: Textures): void {
-  const takht = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 0.7), woodMaterial(tex, 1, 1));
-  takht.position.set(-3.5, VERANDAH_H + 0.225, -7.8);
+  const takht = new THREE.Mesh(new THREE.BoxGeometry(1.6, TAKHT_H, 0.7), woodMaterial(tex, 1, 1));
+  takht.position.set(-3.5, VERANDAH_H + TAKHT_H / 2, -7.8);
   scene.add(takht);
   world.addBox({ minX: -4.3, maxX: -2.7, minZ: -8.15, maxZ: -7.45 });
 }

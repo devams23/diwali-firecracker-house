@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import type { Updatable } from '../core/Engine';
 import { PALETTE } from '../core/palette';
+import { viewport } from '../core/viewport';
 import { rng } from './textures';
 import { MOON_DIRECTION } from './Lighting';
 
@@ -17,6 +18,11 @@ const HOUSE_COUNT = 14;
 const SOUTH_GAP = 0.5;
 const SHIKHARA_DIST = 80;
 const SHIKHARA_H = 30;
+/** Spire radius at height y above its base; the lathe profile and the lamp placement both use it. */
+function spireRadius(y: number): number {
+  const f = 1 - y / SHIKHARA_H;
+  return 5.5 * Math.pow(f, 1.7) + 0.5;
+}
 const SOUND_SPEED = 343;
 const BURST_SLOTS = 2;
 const BURST_MAX = 120;
@@ -51,13 +57,14 @@ const STAR_VERT = /* glsl */ `
   attribute float aPhase;
   attribute vec3 aColor;
   uniform float uTime;
+  uniform float uPixelRatio;
   varying vec3 vColor;
   varying float vBright;
   void main() {
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     vBright = 0.65 + 0.35 * sin(uTime * (1.1 + aPhase * 0.3) + aPhase);
     vColor = aColor;
-    gl_PointSize = aSize;
+    gl_PointSize = aSize * uPixelRatio;
   }
 `;
 const STAR_FRAG = /* glsl */ `
@@ -169,6 +176,7 @@ export class Sky implements Updatable {
   /** Twinkles the stars and advances the far-burst pool, scheduling a new burst every 4 to 9 seconds. */
   update(dt: number, t: number): void {
     this.stars.uniforms.uTime.value = t;
+    this.stars.uniforms.uPixelRatio.value = viewport.pixelRatio;
     if (t >= this.nextBurstAt) {
       const free = this.bursts.find((b) => !b.active);
       if (free) this.launch(free);
@@ -213,7 +221,7 @@ export class Sky implements Updatable {
     const mat = new THREE.ShaderMaterial({
       vertexShader: STAR_VERT,
       fragmentShader: STAR_FRAG,
-      uniforms: { uTime: { value: 0 } },
+      uniforms: { uTime: { value: 0 }, uPixelRatio: { value: viewport.pixelRatio } },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -316,19 +324,24 @@ export class Sky implements Updatable {
     const profile: THREE.Vector2[] = [];
     for (let k = 0; k <= 12; k++) {
       const y = (SHIKHARA_H * k) / 12;
-      const f = 1 - y / SHIKHARA_H;
-      profile.push(new THREE.Vector2(5.5 * Math.pow(f, 1.7) + 0.5, y));
+      profile.push(new THREE.Vector2(spireRadius(y), y));
     }
     profile.push(new THREE.Vector2(0.35, SHIKHARA_H + 1.2), new THREE.Vector2(0, SHIKHARA_H + 2.4));
     const spire = new THREE.Mesh(new THREE.LatheGeometry(profile, 24), mat);
     spire.position.set(cx, 4, cz);
     scene.add(spire);
 
-    // The lone lamp, a little larger than the window dots so it reads at this distance.
+    // The lone lamp sits on the spire surface facing the village, pushed out from the axis by the spire
+    // radius at its height plus a margin, so the opaque spire does not hide it from the aangan.
+    const lampY = 14;
+    const lampR = spireRadius(lampY) + 0.3;
+    const dist = Math.hypot(cx, cz);
+    const lx = cx - (cx / dist) * lampR;
+    const lz = cz - (cz / dist) * lampR;
     const lamp = new THREE.Points(
       new THREE.BufferGeometry().setAttribute(
         'position',
-        new THREE.Float32BufferAttribute([cx, 4 + 14, cz], 3),
+        new THREE.Float32BufferAttribute([lx, 4 + lampY, lz], 3),
       ),
       new THREE.PointsMaterial({
         color: PALETTE.flame,
