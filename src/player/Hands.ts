@@ -7,22 +7,30 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import type { Updatable } from '../core/Engine';
 
 /** Off-white kurta cream for the sleeves and cuffs; warmer than white so the blue night light does not grey it. */
-const KURTA = 0xf3e0b5;
+const KURTA = 0xd9c49a;
 /** Warm brown skin for the hands and wrists. */
-const SKIN = 0x8a5a3c;
+const SKIN = 0xb07a52;
 /** Camera-local rest position of the right wrist; well clear of the 0.05 m near plane. */
-const RIGHT_BASE = new THREE.Vector3(0.28, -0.3, -0.5);
+const RIGHT_BASE = new THREE.Vector3(0.30, -0.34, -0.5);
 /**
  * Camera-local rest position of the left wrist. Pulled forward and up so the near rim of a plate held here
  * sits within the 35° half-field of view below the centre of the screen.
  */
-const LEFT_BASE = new THREE.Vector3(-0.3, -0.28, -0.6);
+const LEFT_BASE = new THREE.Vector3(-0.32, -0.32, -0.6);
 /** Radius of the forearm sleeve, in metres. */
-const SLEEVE_RADIUS = 0.058;
+const SLEEVE_RADIUS = 0.036;
 /** Radius of the cream cuff band at the wrist, slightly wider than the sleeve, in metres. */
-const CUFF_RADIUS = 0.063;
+const CUFF_RADIUS = 0.040;
 /** Radius of the wrist skin where it meets the sleeve, in metres. */
-const WRIST_RADIUS = 0.034;
+const WRIST_RADIUS = 0.030;
+/** Uniform scale of both hand groups; the grips and held items are children, so they scale with the hands. */
+const HAND_SCALE = 1.3;
+/** Radius of each finger and the thumb, in metres. */
+const FINGER_RADIUS = 0.013;
+/** Straight length of each finger and the thumb, in metres. */
+const FINGER_LENGTH = 0.05;
+/** Warm fill light at the camera so the hands and the thaali stay readable in any lighting. */
+const FILL_COLOR = 0xffb070;
 const POKE_TIME = 0.25;
 const POKE_DIST = 0.12;
 const BREATH_AMP = 0.004;
@@ -53,13 +61,26 @@ export class Hands implements Updatable {
 
   /** Builds both hands and attaches them to the camera; the camera itself must be added to the scene. */
   constructor(camera: THREE.PerspectiveCamera) {
-    const kurta = new THREE.MeshStandardMaterial({ color: KURTA, roughness: 0.85 });
-    const skin = new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.7 });
+    const kurta = new THREE.MeshStandardMaterial({
+      color: KURTA,
+      roughness: 0.9,
+      emissive: 0x2a1a0c,
+      emissiveIntensity: 0.4,
+    });
+    const skin = new THREE.MeshStandardMaterial({
+      color: SKIN,
+      roughness: 0.6,
+      emissive: 0x3a1c0c,
+      emissiveIntensity: 0.5,
+    });
 
     this.right.position.copy(RIGHT_BASE);
     this.left.position.copy(LEFT_BASE);
+    this.right.scale.setScalar(HAND_SCALE);
+    this.left.scale.setScalar(HAND_SCALE);
     this.rightGrip.position.set(0, 0.02, -0.1);
-    this.leftGrip.position.set(0, 0.015, -0.1);
+    // The plate underside rests on the palm top (y = 0), so the thaali sits on the palm instead of floating.
+    this.leftGrip.position.set(0, 0, -0.1);
 
     // Right hand: the wrist is the origin, the forearm runs back toward the viewer (+z), and the palm closes
     // around the agarbatti grip in front of it. Four fingers curl over the grip, the thumb sits on the inner side.
@@ -69,9 +90,9 @@ export class Hands implements Updatable {
       this.rightGrip,
     );
     for (let i = 0; i < 4; i++) {
-      this.right.add(limb(0.011, 0.06, skin, -0.033 + i * 0.022, 0.028, -0.13, 0.5));
+      this.right.add(limb(FINGER_RADIUS, FINGER_LENGTH, skin, -0.039 + i * 0.026, 0.028, -0.13, 0.5));
     }
-    this.right.add(limb(0.012, 0.05, skin, -0.05, 0.02, -0.09, 0, 0.5));
+    this.right.add(limb(FINGER_RADIUS, FINGER_LENGTH, skin, -0.05, 0.02, -0.09, 0, 0.5));
 
     // Left hand: palm flat under the thaali, four fingers curling up over its near rim, thumb on the outer side.
     this.left.add(
@@ -80,9 +101,9 @@ export class Hands implements Updatable {
       this.leftGrip,
     );
     for (let i = 0; i < 4; i++) {
-      this.left.add(limb(0.011, 0.05, skin, -0.045 + i * 0.03, 0.012, -0.16, -0.35));
+      this.left.add(limb(FINGER_RADIUS, FINGER_LENGTH, skin, -0.045 + i * 0.03, 0.012, -0.16, -0.35));
     }
-    this.left.add(limb(0.012, 0.05, skin, 0.075, 0.02, -0.1, 0, -0.5));
+    this.left.add(limb(FINGER_RADIUS, FINGER_LENGTH, skin, 0.075, 0.02, -0.1, 0, -0.5));
 
     // Hands skip frustum culling (their bounds sit at the screen edge) and draw after other opaque
     // geometry; depth testing still hides them behind anything nearer, which is the desired result.
@@ -95,6 +116,10 @@ export class Hands implements Updatable {
       });
     }
     camera.add(this.right, this.left);
+    // The fill sits with the hands on the camera, so whatever the player holds is always lit.
+    const fill = new THREE.PointLight(FILL_COLOR, 0.6, 1.5, 2);
+    fill.position.set(0, -0.1, -0.2);
+    camera.add(fill);
   }
 
   /** Object that items held in the left hand are attached to; HandHeld.attach() takes this anchor. */
@@ -165,13 +190,13 @@ export class Hands implements Updatable {
  * wrist, and the short skin wrist that joins the sleeve to the palm. All sit on the wrist axis (the z axis).
  */
 function sleeveAndWrist(kurta: THREE.Material, skin: THREE.Material): THREE.Mesh[] {
-  const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(SLEEVE_RADIUS, SLEEVE_RADIUS, 0.28, 16), kurta);
+  const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(SLEEVE_RADIUS, SLEEVE_RADIUS, 0.16, 16), kurta);
   sleeve.rotation.x = Math.PI / 2;
-  sleeve.position.set(0, 0, 0.2);
+  sleeve.position.set(0, 0, 0.13);
   const cuff = new THREE.Mesh(new THREE.CylinderGeometry(CUFF_RADIUS, CUFF_RADIUS, 0.03, 16), kurta);
   cuff.rotation.x = Math.PI / 2;
-  cuff.position.set(0, 0, 0.05);
-  const wrist = limb(WRIST_RADIUS, 0.04, skin, 0, 0, 0);
+  cuff.position.set(0, 0, 0.03);
+  const wrist = limb(WRIST_RADIUS, 0.05, skin, 0, 0, 0);
   return [sleeve, cuff, wrist];
 }
 
