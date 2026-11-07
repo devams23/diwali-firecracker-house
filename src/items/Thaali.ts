@@ -10,10 +10,25 @@ import { makeCrackerModel } from './crackerModels';
 const PLATE_RADIUS = 0.2;
 const CLOTH_RADIUS = 0.13;
 const CLOTH_Y = 0.0115;
-const RING_RADIUS = 0.1;
+/**
+ * Ring radius for the crackers. With the longest on-plate item (half-length 0.078 m) this keeps every
+ * model inside the 0.2 m rim.
+ */
+const RING_RADIUS = 0.12;
 const SELECTED_LIFT = 0.02;
-/** Kinds drawn lying flat, pointing out from the plate centre, rather than standing upright. */
-const LYING: ReadonlySet<CrackerKind> = new Set<CrackerKind>(['phuljhadi', 'pencil', 'rocket', 'ladi']);
+/**
+ * Display scale per kind, applied only to the thaali's copy so the world-scale models stay unchanged for
+ * the ground. Long kinds shrink to fit the plate; ladi drops to about 0.15 m. Unlisted kinds keep scale 1.
+ */
+const DISPLAY_SCALE: Partial<Record<CrackerKind, number>> = {
+  phuljhadi: 0.5,
+  pencil: 0.7,
+  rocket: 0.5,
+  ladi: 0.125,
+  skyshot: 0.7,
+};
+/** Kinds whose stick runs along Y in the model; these are turned onto the plate so the stick lies flat. */
+const LAID_FLAT: ReadonlySet<CrackerKind> = new Set<CrackerKind>(['phuljhadi', 'pencil', 'rocket']);
 
 let diyaTex: THREE.CanvasTexture | null = null;
 
@@ -86,9 +101,18 @@ export class Thaali {
     cloth.rotation.x = -Math.PI / 2;
     cloth.position.y = CLOTH_Y;
 
+    // Polygon offset pulls the decal toward the camera so it does not z-fight with the cloth beneath.
     const decal = new THREE.Mesh(
       new THREE.PlaneGeometry(0.07, 0.07),
-      new THREE.MeshStandardMaterial({ map: diyaTexture(), transparent: true, depthWrite: false, roughness: 0.8 }),
+      new THREE.MeshStandardMaterial({
+        map: diyaTexture(),
+        transparent: true,
+        depthWrite: false,
+        roughness: 0.8,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      }),
     );
     decal.rotation.x = -Math.PI / 2;
     decal.position.y = CLOTH_Y + 0.001;
@@ -104,14 +128,11 @@ export class Thaali {
     for (let i = 0; i < n; i++) {
       const kind = items[i];
       const angle = (i / n) * Math.PI * 2;
-      const lying = LYING.has(kind);
-      const model = this.template(kind).clone();
-      if (lying) model.rotation.x = Math.PI / 2;
-
       const slot = new THREE.Group();
-      slot.add(model);
+      slot.add(this.template(kind).clone());
       const lift = i === this.inventory.selected ? SELECTED_LIFT : 0;
-      slot.position.set(Math.sin(angle) * RING_RADIUS, CLOTH_Y + (lying ? 0.01 : 0) + lift, Math.cos(angle) * RING_RADIUS);
+      slot.position.set(Math.sin(angle) * RING_RADIUS, CLOTH_Y + lift, Math.cos(angle) * RING_RADIUS);
+      // Local +x runs along the ring's tangent at this angle, so long items lie across the plate, not out of it.
       slot.rotation.y = angle;
       this.slots.add(slot);
     }
@@ -122,13 +143,30 @@ export class Thaali {
     this.object.position.copy(position);
   }
 
-  /** Returns a cached model per kind so refresh() clones instead of rebuilding geometry. */
+  /** Returns a cached, fitted model per kind so refresh() clones instead of rebuilding geometry. */
   private template(kind: CrackerKind): THREE.Group {
     let t = this.templates.get(kind);
     if (!t) {
-      t = makeCrackerModel(kind);
+      t = fittedModel(kind);
       this.templates.set(kind, t);
     }
     return t;
   }
+}
+
+/**
+ * Builds the on-plate copy of one cracker: scaled by its display scale, turned flat where needed, then
+ * centred on the origin in X and Z with its lowest point at Y = 0 so it rests on the plate surface.
+ */
+function fittedModel(kind: CrackerKind): THREE.Group {
+  const holder = new THREE.Group();
+  const model = makeCrackerModel(kind, { bottle: false });
+  model.scale.setScalar(DISPLAY_SCALE[kind] ?? 1);
+  if (LAID_FLAT.has(kind)) model.rotation.z = -Math.PI / 2;
+  holder.add(model);
+  holder.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(holder);
+  const centre = box.getCenter(new THREE.Vector3());
+  model.position.set(-centre.x, -box.min.y, -centre.z);
+  return holder;
 }

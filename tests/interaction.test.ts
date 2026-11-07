@@ -39,4 +39,16 @@ describe('pickInteractable', () => {
     const far = target('far', 0, 1.6, -2);
     expect(pickInteractable(EYE, FORWARD, [far, near])).toBe(near);
   });
+
+  it('picks the smaller of two in-cone angles', () => {
+    // A sits about 8.5 degrees off-axis and B about 24 degrees; both are inside the 28 degree cap.
+    const a = target('A', 0.3, 1.6, -2);
+    const b = target('B', -0.9, 1.6, -2);
+    expect(pickInteractable(EYE, FORWARD, [b, a])).toBe(a);
+  });
+
+  it('lets the radius extend range: a 2.5 m target with radius 0.2 is picked', () => {
+    expect(pickInteractable(EYE, FORWARD, [target('edge', 0, 1.6, -2.5, 0.2)])).not.toBeNull();
+    expect(pickInteractable(EYE, FORWARD, [target('edge', 0, 1.6, -2.5, 0)])).toBeNull();
+  });
 });

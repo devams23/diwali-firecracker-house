@@ -42,6 +42,12 @@ describe('nextHint', () => {
     expect(nextHint(state({ placedUnlit: 1 }))).toBe('Touch the agarbatti to the fuse — click');
   });
 
+  it('gives the charpai hint priority over an unlit placed cracker', () => {
+    expect(nextHint(state({ thaali: 'charpai', placedUnlit: 1 }))).toBe(
+      'Your thaali is on the charpai — go pick it up',
+    );
+  });
+
   it('explains choosing and placing when the thaali has crackers', () => {
     expect(nextHint(state({ thaaliCount: 4 }))).toBe('Q / scroll to choose · F to place it on the ground');
   });

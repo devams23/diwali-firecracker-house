@@ -148,11 +148,14 @@ function chakri(): THREE.Group {
   return g;
 }
 
-/** Rocket: a rocket tube on a long thin bamboo stick, standing in a green glass bottle; fuse on the tube's top. */
-function rocket(): THREE.Group {
+/**
+ * Rocket: a rocket tube on a long thin bamboo stick, standing in a green glass bottle unless `bottle` is false
+ * (the thaali drops the bottle); fuse on the tube's top.
+ */
+function rocket(opts: ModelOptions): THREE.Group {
   const g = new THREE.Group();
   const glass = new THREE.MeshStandardMaterial({ color: 0x2e6b3c, roughness: 0.15, transparent: true, opacity: 0.8 });
-  const bottle = new THREE.LatheGeometry(
+  const bottleGeo = new THREE.LatheGeometry(
     [
       new THREE.Vector2(0, 0),
       new THREE.Vector2(0.02, 0),
@@ -164,7 +167,7 @@ function rocket(): THREE.Group {
     ],
     12,
   );
-  part(g, bottle, glass, 0, 0, 0);
+  if (opts.bottle ?? true) part(g, bottleGeo, glass, 0, 0, 0);
   part(g, new THREE.CylinderGeometry(0.008, 0.008, 0.03, 12), solid(GERU, 0.7), 0, 0.115, 0);
   part(g, new THREE.CylinderGeometry(0.0025, 0.0025, 0.25, 6), solid(BAMBOO, 0.8), 0, 0.255, 0);
   fuseAt(g, 0, 0.13, 0);
@@ -243,7 +246,13 @@ function skyshot(): THREE.Group {
   return g;
 }
 
-const BUILDERS: Record<CrackerKind, () => THREE.Group> = {
+/** Per-model build options; only the rocket reads them today. */
+interface ModelOptions {
+  /** Whether the rocket stands in its green glass bottle; defaults to true. */
+  bottle?: boolean;
+}
+
+const BUILDERS: Record<CrackerKind, (opts: ModelOptions) => THREE.Group> = {
   phuljhadi,
   pencil,
   anar,
@@ -256,7 +265,11 @@ const BUILDERS: Record<CrackerKind, () => THREE.Group> = {
   skyshot,
 };
 
-/** Builds a fresh model for one cracker kind; callers that place many copies should clone a cached one. */
-export function makeCrackerModel(kind: CrackerKind): THREE.Group {
-  return BUILDERS[kind]();
+/**
+ * Builds a fresh model for one cracker kind; callers that place many copies should clone a cached one.
+ * The label textures and materials are shared caches across all models: never dispose them per cracker,
+ * or every other copy of that kind goes black.
+ */
+export function makeCrackerModel(kind: CrackerKind, opts: ModelOptions = {}): THREE.Group {
+  return BUILDERS[kind](opts);
 }
