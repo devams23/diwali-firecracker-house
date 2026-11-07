@@ -208,15 +208,17 @@ function makeWoodShade(): (u: number, v: number) => Rgb {
   };
 }
 
-/** Hairline cracks: short random-walk polylines in a dark, translucent brown. */
+/**
+ * Hairline cracks: short random-walk polylines in a dark, translucent brown. Each one is stroked at
+ * every wrap offset, so a crack that leaves one edge re-enters at the opposite edge.
+ */
 function drawCracks(ctx: CanvasRenderingContext2D, size: number, seed: number): void {
   const r = rng(seed);
   for (let c = 0; c < 7; c++) {
     let x = r() * size;
     let y = r() * size;
     let a = r() * TAU;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
+    const pts: [number, number][] = [[x, y]];
     ctx.strokeStyle = `rgba(96,66,44,${(0.25 + 0.2 * r()).toFixed(3)})`;
     ctx.lineWidth = 0.6 + 0.5 * r();
     const steps = 10 + Math.floor(r() * 18);
@@ -224,9 +226,16 @@ function drawCracks(ctx: CanvasRenderingContext2D, size: number, seed: number): 
       a += (r() - 0.5) * 0.9;
       x += Math.cos(a) * 3.2;
       y += Math.sin(a) * 3.2;
-      ctx.lineTo(x, y);
+      pts.push([x, y]);
     }
-    ctx.stroke();
+    for (const dx of [-size, 0, size]) {
+      for (const dy of [-size, 0, size]) {
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0] + dx, pts[0][1] + dy);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0] + dx, pts[i][1] + dy);
+        ctx.stroke();
+      }
+    }
   }
 }
 
@@ -239,41 +248,62 @@ function drawBroomStreaks(ctx: CanvasRenderingContext2D, size: number, seed: num
     const len = 80 + r() * 160;
     ctx.strokeStyle = r() < 0.5 ? 'rgba(60,40,24,0.06)' : 'rgba(190,160,120,0.05)';
     ctx.lineWidth = 1 + r() * 2;
-    ctx.beginPath();
-    ctx.moveTo(x0, y);
-    ctx.lineTo(x0 + len, y + (r() - 0.5) * 6);
-    ctx.stroke();
+    const y1 = y + (r() - 0.5) * 6;
+    // Streaks are wider than the canvas edge can clip, so each is drawn at both wrap offsets.
+    for (const dx of [-size, 0, size]) {
+      ctx.beginPath();
+      ctx.moveTo(x0 + dx, y);
+      ctx.lineTo(x0 + len + dx, y1);
+      ctx.stroke();
+    }
   }
 }
 
-/** Overlapping curved khaprail (pan tile) rows in terracotta, each tile shaded individually. */
+/**
+ * Khaprail (pan tile) rows in terracotta. The grid is 8 columns by 16 rows; each tile's shade is read
+ * from its grid cell, so the pattern is periodic. Every tile is also drawn at the four wrap offsets,
+ * so tiles cut by an edge show their other half on the opposite edge.
+ */
 function drawTiles(ctx: CanvasRenderingContext2D, size: number, seed: number): void {
   const r = rng(seed);
+  const COLS = 8;
+  const ROWS = 16;
+  const shades: number[] = [];
+  for (let i = 0; i < COLS * ROWS; i++) shades.push(0.82 + 0.3 * r());
   const css = (c: Rgb, k: number) =>
     `rgb(${Math.min(255, c[0] * k) | 0},${Math.min(255, c[1] * k) | 0},${Math.min(255, c[2] * k) | 0})`;
   ctx.fillStyle = css(TERRACOTTA, 1);
   ctx.fillRect(0, 0, size, size);
-  // 16 rows and 8 tiles across so the pattern wraps exactly; an odd row is offset by half a tile.
-  const rowH = size / 16;
-  const tileW = size / 8;
-  const ry = rowH * 1.25;
+
+  const rowH = size / ROWS;
+  const tileW = size / COLS;
+  // The lower half-disc spans exactly one row, so neighbouring rows never overlap and no draw
+  // order can show a seam between them.
+  const ry = rowH;
   const rx = tileW * 0.46;
-  for (let row = 0; row < 17; row++) {
-    const y = row * rowH;
+  for (let row = 0; row < ROWS; row++) {
     const shift = row % 2 ? tileW / 2 : 0;
-    for (let x = -tileW + shift; x < size + tileW; x += tileW) {
-      const k = 0.82 + 0.3 * r();
-      const g = ctx.createRadialGradient(x, y, 2, x, y, ry);
-      g.addColorStop(0, css(TERRACOTTA, k * 1.18));
-      g.addColorStop(1, css(TERRACOTTA, k * 0.6));
-      ctx.beginPath();
-      ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI);
-      ctx.closePath();
-      ctx.fillStyle = g;
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(42,20,10,0.55)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+    for (let col = 0; col < COLS; col++) {
+      const k = shades[row * COLS + col];
+      const x0 = col * tileW + shift;
+      const y0 = row * rowH;
+      for (const dx of [-size, 0, size]) {
+        for (const dy of [-size, 0, size]) {
+          const x = x0 + dx;
+          const y = y0 + dy;
+          const g = ctx.createRadialGradient(x, y, 2, x, y, ry);
+          g.addColorStop(0, css(TERRACOTTA, k * 1.18));
+          g.addColorStop(1, css(TERRACOTTA, k * 0.6));
+          ctx.beginPath();
+          ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI);
+          ctx.closePath();
+          ctx.fillStyle = g;
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(42,20,10,0.55)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      }
     }
   }
 }

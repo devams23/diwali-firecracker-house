@@ -17,6 +17,8 @@ const OUTER_Z = SOUTH_INNER_Z + WALL_T;
 export const GATE_HALF = 0.8;
 /** Max displacement of a wall face in metres; enough to read as hand-built, not visible as a bug. */
 const JITTER = 0.03;
+/** Lift for anything set on a jittered wall face: the largest jitter plus 1 cm, so it never sinks into the plaster. */
+export const FACE_CLEARANCE = JITTER + 0.01;
 export const DIYA_SPACING = 1.2;
 const NICHES_PER_WALL = 6;
 
@@ -109,7 +111,11 @@ function addWall(scene: THREE.Scene, tex: Textures, s: Span, coping: boolean): v
   }
 }
 
-/** Adds a niche (aala) recessed into a side wall, with a sill and lintel; returns its diya spot. */
+/**
+ * Adds a niche (aala) on a side wall: a flat, dark, soot-stained panel standing proud of the face,
+ * framed by a sill and lintel. It is a plane, not a cut, so it is lifted by FACE_CLEARANCE to stay
+ * clear of the wall jitter. Returns the niche's diya spot.
+ */
 function addNiche(
   scene: THREE.Scene,
   mat: THREE.Material,
@@ -117,12 +123,11 @@ function addNiche(
   inward: number,
   z: number,
 ): THREE.Vector3 {
-  // The recess is a dark, soot-stained panel set just inside the wall face.
   const recess = new THREE.Mesh(
     new THREE.PlaneGeometry(0.38, 0.5),
     new THREE.MeshStandardMaterial({ color: 0x2a1a10, roughness: 0.95, metalness: 0 }),
   );
-  recess.position.set(faceX + inward * 0.003, 1.15, z);
+  recess.position.set(faceX + inward * FACE_CLEARANCE, 1.15, z);
   recess.rotation.y = (inward * Math.PI) / 2;
   scene.add(recess);
 
@@ -168,11 +173,11 @@ export function buildAangan(
   world: CollisionWorld,
   tex: Textures,
 ): { diyaSpots: THREE.Vector3[] } {
-  // Ground: beaten earth over a 60 m plot; the repeat keeps the mottling fine up close.
-  tex.earth.repeat.set(12, 12);
+  // Ground: beaten earth over a 60 m plot; the repeat keeps the mottling fine up close. A clone
+  // carries its own repeat, so the shared earth texture is left untouched for other surfaces.
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(60, 60),
-    new THREE.MeshStandardMaterial({ map: tex.earth, roughness: 0.95, metalness: 0 }),
+    new THREE.MeshStandardMaterial({ map: tile(tex.earth, 12, 12), roughness: 0.95, metalness: 0 }),
   );
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
@@ -210,8 +215,8 @@ export function buildAangan(
     world.addBox({ minX: s.minX, maxX: s.maxX, minZ: s.minZ, maxZ: s.maxZ });
   }
 
-  // Gate: a 1.6 m opening with a lintel above it. The opening stays visibly open, but a blocker
-  // just inside it keeps the player in the courtyard.
+  // Gate: a 1.6 m opening with a lintel above it. The opening stays visibly open; a blocker across
+  // its depth, starting 0.1 m inside the courtyard face, keeps the player in the courtyard.
   const gateMat = woodMaterial(tex, 1.5, 1);
   addWall(
     scene,
@@ -221,7 +226,7 @@ export function buildAangan(
   );
   addGateLeaf(scene, gateMat, -GATE_HALF, 1, -1.2);
   addGateLeaf(scene, gateMat, GATE_HALF, -1, 1.2);
-  world.addBox({ minX: -GATE_HALF, maxX: GATE_HALF, minZ: 6.8, maxZ: OUTER_Z });
+  world.addBox({ minX: -GATE_HALF, maxX: GATE_HALF, minZ: 7.1, maxZ: OUTER_Z });
 
   // Niches: six per side wall, evenly spaced, each with a diya spot.
   const diyaSpots: THREE.Vector3[] = [];

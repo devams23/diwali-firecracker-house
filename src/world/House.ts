@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { PALETTE } from '../core/palette';
 import type { CollisionWorld } from '../core/Collision';
 import { tile, type Textures } from './textures';
-import { jitteredBox, plasterMaterial, woodMaterial } from './Aangan';
+import { FACE_CLEARANCE, jitteredBox, plasterMaterial, woodMaterial } from './Aangan';
 
 /** Anchor points other systems (lanterns, props, diyas) attach to. */
 export interface HouseAnchors {
@@ -224,9 +224,9 @@ function buildDoor(scene: THREE.Scene, tex: Textures): void {
   const doorH = DOOR_TOP - VERANDAH_H;
   const doorY = (VERANDAH_H + DOOR_TOP) / 2;
 
-  // Dark frame sits just proud of the wall face and shows as a border around the leaves.
+  // Dark frame sits proud of the jittered wall face by FACE_CLEARANCE and shows as a border around the leaves.
   const frame = new THREE.Mesh(new THREE.BoxGeometry(1.9, doorH + 0.05, 0.04), frameMat);
-  frame.position.set(0, doorY, FRONT_Z + 0.02);
+  frame.position.set(0, doorY, FRONT_Z + FACE_CLEARANCE);
   scene.add(frame);
 
   for (const side of [-1, 1]) {
@@ -243,7 +243,8 @@ function buildDoor(scene: THREE.Scene, tex: Textures): void {
 /** Two small shuttered windows with a warm interior glow plane and half-open shutters. */
 function buildWindow(scene: THREE.Scene, tex: Textures, cx: number): void {
   const y = 1.85;
-  const z = FRONT_Z;
+  // Everything on the window sits FACE_CLEARANCE proud of the jittered front wall.
+  const z = FRONT_Z + FACE_CLEARANCE;
   const frameMat = woodMaterial(tex, 1, 1);
 
   // Warm glow from inside; emissive so it reads as lit without adding a light.
@@ -257,7 +258,7 @@ function buildWindow(scene: THREE.Scene, tex: Textures, cx: number): void {
       metalness: 0,
     }),
   );
-  glow.position.set(cx, y, z + 0.012);
+  glow.position.set(cx, y, z);
   scene.add(glow);
 
   // Four frame strips around the glow.
@@ -373,7 +374,7 @@ function buildDecals(scene: THREE.Scene, tex: Textures): void {
         metalness: 0,
       }),
     );
-    decal.position.set(x, 1.6, FRONT_Z + 0.012);
+    decal.position.set(x, 1.6, FRONT_Z + FACE_CLEARANCE);
     scene.add(decal);
     // The Devanagari face loads from Google Fonts; redraw once it is ready so the first paint is not a fallback.
     document.fonts
