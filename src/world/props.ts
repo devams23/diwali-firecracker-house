@@ -221,13 +221,13 @@ export function buildProps(
   const tulsiDiyaPos = new THREE.Vector3(0, 0.95, 0.55);
   const agarbattiStandPos = new THREE.Vector3(0.3, 0.95, 0.55);
   buildTulsiChaura(scene, world, tex);
-  buildAgarbatti(scene, agarbattiStandPos);
+  buildAgarbattiStand(scene, agarbattiStandPos);
 
   const rope = ropeTexture();
+  // The thaali itself is built by the game; this is only the spot it is set down on.
   const charpaiThaaliPos = new THREE.Vector3(4.5, 0.48, 3.5);
   buildCharpai(scene, world, tex, rope, 4.5, 3.5);
   buildCharpai(scene, world, tex, rope, -6, 2);
-  buildThaali(scene, charpaiThaaliPos);
 
   const takhtBoxes = buildTakhtBoxes(scene, house.takhtPosition);
   buildMatkas(scene, world);
@@ -345,8 +345,11 @@ function buildTulsiPlant(scene: THREE.Scene): void {
   scene.add(leaves);
 }
 
-/** Brass agarbatti stand on the diya ledge: a flat base, a cup and three incense sticks with glowing tips. */
-function buildAgarbatti(scene: THREE.Scene, pos: THREE.Vector3): void {
+/**
+ * Brass agarbatti stand on the diya ledge: a flat base and a cup. The incense itself is carried by the
+ * player, so the stand holds no sticks.
+ */
+function buildAgarbattiStand(scene: THREE.Scene, pos: THREE.Vector3): void {
   const group = new THREE.Group();
   group.position.copy(pos);
   const brass = brassMaterial();
@@ -357,23 +360,6 @@ function buildAgarbatti(scene: THREE.Scene, pos: THREE.Vector3): void {
   const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.016, 0.03, 12), brass);
   cup.position.y = 0.027;
   group.add(cup);
-
-  const stickMat = new THREE.MeshStandardMaterial({ color: 0x3a2818, roughness: 0.9, metalness: 0 });
-  const tipMat = new THREE.MeshBasicMaterial({ color: PALETTE.flame });
-  const offsets: [number, number][] = [
-    [0, 0],
-    [0.008, 0.006],
-    [-0.007, -0.005],
-  ];
-  for (const [ox, oz] of offsets) {
-    // Stick, then a small glowing tip where it burns (no light, only the bloom picks it up).
-    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.2, 4), stickMat);
-    stick.position.set(ox, 0.14, oz);
-    group.add(stick);
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.003, 6, 4), tipMat);
-    tip.position.set(ox, 0.24, oz);
-    group.add(tip);
-  }
   scene.add(group);
 }
 
@@ -429,23 +415,6 @@ function buildCharpai(
     minZ: z - CHARPAI_W / 2,
     maxZ: z + CHARPAI_W / 2,
   });
-}
-
-/** Brass thaali resting on the charpai: a shallow plate with four laddoos on it. */
-function buildThaali(scene: THREE.Scene, pos: THREE.Vector3): void {
-  const group = new THREE.Group();
-  group.position.copy(pos);
-  const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.015, 24), brassMaterial());
-  plate.position.y = 0.0075;
-  group.add(plate);
-  const laddooMat = new THREE.MeshStandardMaterial({ color: 0xd8a040, roughness: 0.8, metalness: 0 });
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), laddooMat);
-    ball.position.set(Math.cos(a) * 0.09, 0.045, Math.sin(a) * 0.09);
-    group.add(ball);
-  }
-  scene.add(group);
 }
 
 /** Cracker boxes on the takht: open cardboard boxes, one per kind, with a printed label on the south end. */

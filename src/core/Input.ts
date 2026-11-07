@@ -53,7 +53,7 @@ export class Input {
     return this.clickedThisFrame;
   }
 
-  /** Net wheel direction this frame: -1 (away/down), 0, or 1 (toward/up). */
+  /** Net wheel direction this frame: -1 (scroll up), 0, or 1 (scroll down). */
   wheel(): number {
     return Math.max(-1, Math.min(1, this.wheelThisFrame));
   }
@@ -70,7 +70,8 @@ export class Input {
 
   /** Asks the browser to capture the pointer on the canvas; must follow a user gesture. */
   requestLock(): void {
-    this.dom.requestPointerLock();
+    // Some browsers return a promise that rejects when the lock is refused; a refusal is harmless here.
+    (this.dom.requestPointerLock() as unknown as Promise<void> | undefined)?.catch(() => {});
   }
 
   /** Clears per-frame state (presses, clicks, wheel, mouse delta); call once at frame end. */

@@ -9,8 +9,11 @@ const KURTA = 0xd8c7a3;
 const SKIN = 0xa9714b;
 /** Camera-local rest position of the right wrist; well clear of the 0.05 m near plane. */
 const RIGHT_BASE = new THREE.Vector3(0.28, -0.3, -0.5);
-/** Camera-local rest position of the left wrist. */
-const LEFT_BASE = new THREE.Vector3(-0.3, -0.34, -0.48);
+/**
+ * Camera-local rest position of the left wrist. Pulled forward and up so the near rim of a plate held here
+ * sits within the 35° half-field of view below the centre of the screen.
+ */
+const LEFT_BASE = new THREE.Vector3(-0.3, -0.28, -0.6);
 const POKE_TIME = 0.25;
 const POKE_DIST = 0.12;
 const BREATH_AMP = 0.004;
@@ -82,6 +85,11 @@ export class Hands implements Updatable {
       });
     }
     camera.add(this.right, this.left);
+  }
+
+  /** Object that items held in the left hand are attached to; HandHeld.attach() takes this anchor. */
+  get leftHold(): THREE.Object3D {
+    return this.leftGrip;
   }
 
   /** Puts an object (the agarbatti) into the right hand, or clears the hand when given null. */

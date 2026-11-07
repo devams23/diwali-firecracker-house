@@ -30,6 +30,24 @@ const DISPLAY_SCALE: Partial<Record<CrackerKind, number>> = {
 /** Kinds whose stick runs along Y in the model; these are turned onto the plate so the stick lies flat. */
 const LAID_FLAT: ReadonlySet<CrackerKind> = new Set<CrackerKind>(['phuljhadi', 'pencil', 'rocket']);
 
+/**
+ * Height of the plate's top surface at radius r from its centre, following the lathe profile: nearly flat in the
+ * middle, then rising in a straight line to the rim top at PLATE_RADIUS. Beyond the rim it returns the lip height.
+ */
+export function dishHeight(r: number): number {
+  if (r <= 0.14) return 0.0095 + 0.001 * (Math.max(0, r) / 0.14);
+  if (r <= PLATE_RADIUS) return 0.0105 + (0.026 - 0.0105) * ((r - 0.14) / (PLATE_RADIUS - 0.14));
+  return 0.024;
+}
+
+/**
+ * Distance from the plate centre to the outermost corner of a cracker whose slot sits at `ringRadius`, given its
+ * half-size along the tangent and along the radius. Used to decide how high the item must rest on the dish.
+ */
+export function footprintRadius(ringRadius: number, halfTangent: number, halfRadial: number): number {
+  return Math.hypot(ringRadius + halfRadial, halfTangent);
+}
+
 let diyaTex: THREE.CanvasTexture | null = null;
 
 /** Small clay diya with a flame drawn on canvas, used as the decal at the centre of the cloth. */
@@ -90,7 +108,7 @@ export class Thaali {
   location: 'charpai' | 'hand' | 'ground' = 'charpai';
 
   private readonly slots = new THREE.Group();
-  private readonly templates = new Map<CrackerKind, THREE.Group>();
+  private readonly templates = new Map<CrackerKind, { model: THREE.Group; outer: number }>();
 
   /** Builds the plate with an empty ring; call refresh() after adding crackers. */
   constructor() {
@@ -129,9 +147,12 @@ export class Thaali {
       const kind = items[i];
       const angle = (i / n) * Math.PI * 2;
       const slot = new THREE.Group();
-      slot.add(this.template(kind).clone());
+      const entry = this.template(kind);
+      slot.add(entry.model.clone());
+      // Rest the item where the dish is high enough for its outer corner, so the rim does not cut through it.
+      const rest = Math.max(CLOTH_Y, dishHeight(entry.outer));
       const lift = i === this.inventory.selected ? SELECTED_LIFT : 0;
-      slot.position.set(Math.sin(angle) * RING_RADIUS, CLOTH_Y + lift, Math.cos(angle) * RING_RADIUS);
+      slot.position.set(Math.sin(angle) * RING_RADIUS, rest + lift, Math.cos(angle) * RING_RADIUS);
       // Local +x runs along the ring's tangent at this angle, so long items lie across the plate, not out of it.
       slot.rotation.y = angle;
       this.slots.add(slot);
@@ -143,11 +164,18 @@ export class Thaali {
     this.object.position.copy(position);
   }
 
-  /** Returns a cached, fitted model per kind so refresh() clones instead of rebuilding geometry. */
-  private template(kind: CrackerKind): THREE.Group {
+  /**
+   * Returns a cached, fitted model per kind with its outer footprint radius, so refresh() clones instead of
+   * rebuilding geometry.
+   */
+  private template(kind: CrackerKind): { model: THREE.Group; outer: number } {
     let t = this.templates.get(kind);
     if (!t) {
-      t = fittedModel(kind);
+      const model = fittedModel(kind);
+      const box = new THREE.Box3().setFromObject(model);
+      const halfX = (box.max.x - box.min.x) / 2;
+      const halfZ = (box.max.z - box.min.z) / 2;
+      t = { model, outer: footprintRadius(RING_RADIUS, halfX, halfZ) };
       this.templates.set(kind, t);
     }
     return t;
