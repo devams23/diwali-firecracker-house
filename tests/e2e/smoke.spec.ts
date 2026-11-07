@@ -40,6 +40,8 @@ const BURST_TIMEOUT_MS = 60000;
 const AFTER_BURST_MS = 1500;
 /** Downward tilt in radians: a cracker 3 m ahead sits about 28° below the eye, so this centres it in the view. */
 const LOOK_DOWN = -0.5;
+/** Upward tilt in radians for the sky shot: about 25 degrees, so a burst 30 to 40 m up sits in the upper view. */
+const SKY_LOOK_UP = 0.44;
 
 /**
  * Records every console error and uncaught page error. Font requests are answered locally so the run does not depend
@@ -137,5 +139,24 @@ test('the debug hook places, lights and fires crackers', async ({ page }) => {
   expect(await burstCount()).toBeGreaterThanOrEqual(1);
   const afterDown = await pixelStats(page, down);
   expect(afterDown.bright - beforeDown.bright).toBeGreaterThan(MIN_SPARK_PIXELS);
+  expect(errors).toEqual([]);
+});
+
+test('the sky show is shot from a tilted view during a burst', async ({ page }) => {
+  const errors = await watchErrors(page);
+  await page.goto('/?debug');
+  await startFromIntro(page);
+
+  // A rocket 3 m ahead with the view tilted up to the sky. The burst is captured as soon as the game counts it.
+  await page.evaluate((pitch: number) => {
+    const d = window.__diwali!;
+    d.teleport(0, 6, 0, pitch);
+    d.place('rocket');
+  }, SKY_LOOK_UP);
+  await page.evaluate(() => window.__diwali!.lightAll());
+  await page.waitForFunction(() => window.__diwali!.state().burstCount >= 1, undefined, { timeout: BURST_TIMEOUT_MS });
+  const sky = await page.screenshot({ path: 'screenshots/sky.png' });
+
+  expect((await pixelStats(page, sky)).mean).toBeGreaterThan(MIN_MEAN_LUMINANCE);
   expect(errors).toEqual([]);
 });

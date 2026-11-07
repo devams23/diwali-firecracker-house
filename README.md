@@ -78,4 +78,4 @@ cracker 3 m ahead), `lightAll()`, `teleport(x, z, yaw, pitch)` and `state()`. No
   ship with the game.
 - **Audio:** sounds are synthesised with the Web Audio API (oscillators and noise buffers).
 - **Screenshots:** `screenshots/` holds the frames the Playwright run captures (`hands.png`, `aangan.png`,
-  `burst.png`). They are regenerated on each run.
+  `burst.png`, `sky.png`). They are regenerated on each run.
