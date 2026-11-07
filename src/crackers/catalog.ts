@@ -1,0 +1,57 @@
+// Cracker catalogue: the ten cracker kinds in fixed order with their English and Hindi names,
+// fuse times, hand-held flag and box tint. Shared by the takht boxes and the firing systems.
+
+/** Identifier for every cracker the game knows about. */
+export type CrackerKind =
+  | 'phuljhadi'
+  | 'pencil'
+  | 'anar'
+  | 'chakri'
+  | 'rocket'
+  | 'laxmi'
+  | 'sutli'
+  | 'ladi'
+  | 'saanp'
+  | 'skyshot';
+
+/** Display metadata for one cracker kind. */
+export interface CrackerInfo {
+  /** English name printed on the box. */
+  label: string;
+  /** Devanagari name printed under the English one. */
+  hindi: string;
+  /** True for crackers lit and held in the left hand rather than placed on the ground. */
+  handheld: boolean;
+  /** Seconds between lighting the fuse and the effect. */
+  fuse: number;
+  /** Muted box band colour as a hex number. */
+  tint: number;
+}
+
+/** Stable order used for the takht row and the Q/scroll cycle. */
+export const CRACKER_ORDER: CrackerKind[] = [
+  'phuljhadi',
+  'pencil',
+  'anar',
+  'chakri',
+  'rocket',
+  'laxmi',
+  'sutli',
+  'ladi',
+  'saanp',
+  'skyshot',
+];
+
+/** Metadata per kind; fuse times and placements follow the design spec's cracker table. */
+export const CRACKERS: Record<CrackerKind, CrackerInfo> = {
+  phuljhadi: { label: 'Phuljhadi', hindi: 'फुलझड़ी', handheld: true, fuse: 0, tint: 0xc9a24a },
+  pencil: { label: 'Pencil', hindi: 'पेंसिल', handheld: true, fuse: 0, tint: 0x5f8a6a },
+  anar: { label: 'Anar', hindi: 'अनार', handheld: false, fuse: 2.5, tint: 0xa8583a },
+  chakri: { label: 'Chakri', hindi: 'चकरी', handheld: false, fuse: 2, tint: 0x7a8a9a },
+  rocket: { label: 'Rocket', hindi: 'रॉकेट', handheld: false, fuse: 2, tint: 0x6a7f8f },
+  laxmi: { label: 'Laxmi Bomb', hindi: 'लक्ष्मी बम', handheld: false, fuse: 2.5, tint: 0x9c3b22 },
+  sutli: { label: 'Sutli Bomb', hindi: 'सुतली बम', handheld: false, fuse: 4, tint: 0x8a6e4a },
+  ladi: { label: 'Ladi', hindi: 'लड़ी', handheld: false, fuse: 2, tint: 0xb0603a },
+  saanp: { label: 'Saanp Goli', hindi: 'साँप गोली', handheld: false, fuse: 1.5, tint: 0x4f6a5a },
+  skyshot: { label: 'Sky Shot', hindi: 'स्काई शॉट', handheld: false, fuse: 3, tint: 0x3f5a7a },
+};

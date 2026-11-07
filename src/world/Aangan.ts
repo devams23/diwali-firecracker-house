@@ -5,19 +5,19 @@ import * as THREE from 'three';
 import type { CollisionWorld } from '../core/Collision';
 import { tile, type Textures } from './textures';
 
-const WALL_H = 2.0;
-const WALL_T = 0.35;
+export const WALL_H = 2.0;
+export const WALL_T = 0.35;
 /** Inner face of the east and west walls (metres from the centre line). */
-const INNER_X = 9;
+export const INNER_X = 9;
 /** Inner face of the south (gate) wall. */
-const SOUTH_INNER_Z = 7;
+export const SOUTH_INNER_Z = 7;
 /** The side walls run up to the house front, so the house closes the courtyard on the north. */
 const NORTH_Z = -8.6;
 const OUTER_Z = SOUTH_INNER_Z + WALL_T;
-const GATE_HALF = 0.8;
+export const GATE_HALF = 0.8;
 /** Max displacement of a wall face in metres; enough to read as hand-built, not visible as a bug. */
 const JITTER = 0.03;
-const DIYA_SPACING = 1.2;
+export const DIYA_SPACING = 1.2;
 const NICHES_PER_WALL = 6;
 
 /** Axis-aligned wall piece in world space. */

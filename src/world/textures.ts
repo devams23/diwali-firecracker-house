@@ -69,7 +69,7 @@ function toTexture(canvas: HTMLCanvasElement, wrap: boolean): THREE.CanvasTextur
 }
 
 /** Seeded PRNG (mulberry32) so the procedural layout is identical on every load. */
-function rng(seed: number): () => number {
+export function rng(seed: number): () => number {
   let s = seed >>> 0;
   return () => {
     s = (s + 0x6d2b79f5) >>> 0;
