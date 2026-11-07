@@ -12,8 +12,8 @@ export const CLAY = 0x9a5a34;
 const FLAME_CORE = 0xfff0c0;
 /** Height of the flame base above the bowl origin, in unscaled metres. */
 const FLAME_BASE = 0.05;
-const LIGHT_INTENSITY = 1.6;
-const LIGHT_DISTANCE = 6;
+const LIGHT_INTENSITY = 2.9;
+const LIGHT_DISTANCE = 9;
 /** Radius/height profile of the bowl, revolved around the Y axis; the inner wall ends at the oil level. */
 const BOWL_PROFILE: [number, number][] = [
   [0, 0],

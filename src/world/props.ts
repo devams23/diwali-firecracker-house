@@ -593,7 +593,7 @@ function buildAkashKandil(scene: THREE.Scene, anchor: THREE.Vector3): void {
   core.position.set(0, -0.06, 0);
   group.add(core);
 
-  const light = new THREE.PointLight(0xffa040, 1.2, 8);
+  const light = new THREE.PointLight(0xffa040, 2.5, 12);
   light.position.set(0, -0.06, 0.05);
   group.add(light);
   scene.add(group);

@@ -5,7 +5,6 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { PALETTE } from './palette';
 import { viewport } from './viewport';
 
 /** Anything that needs per-frame updates; dt is seconds (clamped), t is total elapsed seconds. */
@@ -15,6 +14,8 @@ export interface Updatable {
 
 /** Largest frame step fed to systems, so a tab switch does not teleport physics or fireworks. */
 const MAX_DT = 0.05;
+/** Warm indigo for the sky fog and background: lifts the night into an evening glow rather than a black room. */
+const NIGHT_FOG = 0x1a1530;
 
 /** Rendering core: renderer, scene, camera, bloom composer and the frame loop. */
 export class Engine {
@@ -40,14 +41,14 @@ export class Engine {
     this.renderer.setPixelRatio(pixelRatio);
     this.renderer.setSize(width, height);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.toneMappingExposure = 1.35;
     // Shadows are off for performance; the diyas provide fake local light instead.
     this.renderer.shadowMap.enabled = false;
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(PALETTE.night);
-    this.scene.fog = new THREE.FogExp2(PALETTE.night, 0.018);
+    this.scene.background = new THREE.Color(NIGHT_FOG);
+    this.scene.fog = new THREE.FogExp2(NIGHT_FOG, 0.009);
 
     this.camera = new THREE.PerspectiveCamera(70, width / height, 0.05, 400);
 
@@ -55,7 +56,7 @@ export class Engine {
     this.composer.setPixelRatio(pixelRatio);
     this.composer.setSize(width, height);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(width, height), 0.9, 0.6, 0.82);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(width, height), 1.15, 0.7, 0.7);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
