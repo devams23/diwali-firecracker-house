@@ -50,7 +50,7 @@ export function buildStall(scene: THREE.Scene, world: CollisionWorld, tex: Textu
   // Counter: a wooden plinth the boxes stand on.
   const counter = new THREE.Mesh(
     new THREE.BoxGeometry(STALL_W, COUNTER_H, STALL_D),
-    woodMaterial(tex, 1.5, 1, 0xc49a62),
+    woodMaterial(tex, 1.5, 1, 0xe2b77c),
   );
   counter.position.y = COUNTER_H / 2;
   stall.add(counter);
@@ -98,7 +98,7 @@ export function buildStall(scene: THREE.Scene, world: CollisionWorld, tex: Textu
   stall.add(sign);
 
   // One warm lamp under the canopy: the stall's share of the point-light budget.
-  const lamp = new THREE.PointLight(0xffc27a, 3, 9, 2);
+  const lamp = new THREE.PointLight(0xffc27a, 7, 10, 2);
   lamp.position.set(0, POST_H - 0.2, 0.3);
   stall.add(lamp);
 
