@@ -1,7 +1,7 @@
 // Ladi (string of crackers): a braided fuse laid on the ground with red paper tubes standing on it. Once lit, it pops
 // 60 times along the laid curve from the lit end, at a randomised 15 to 25 pops a second with the occasional double
-// pop. Each pop is a crack with a burst of 20 to 40 gold sparks, a hot white point, 5 to 10 red paper bits, a flash
-// every third pop and a small smoke puff. The tubes vanish as the pops pass them and the braid burns away behind the
+// pop. Each pop is a crack with a burst of 30 to 50 bright gold sparks, a white flash sprite and light, 5 to 10 red paper bits
+// and a smoke puff on every second pop. The tubes vanish as the pops pass them and the braid burns away behind the
 // pops. The chain jumps a little on each pop, the camera shakes a touch within 4 m, and the end sometimes flicks round.
 import * as THREE from 'three';
 import { Cracker } from './Cracker';
@@ -16,10 +16,8 @@ const POP_RATE_MAX = 25;
 /** Chance that a pop is followed almost at once by a second pop, and the gap range of that double, in seconds. */
 const DOUBLE_CHANCE = 0.15;
 const DOUBLE_GAP: [number, number] = [0.012, 0.02];
-/** Every this-many pops gets a tiny flash of light, which keeps the light pool within its budget. */
-const FLASH_EVERY = 3;
 /** Every this-many pops (offset by one) leaves a small smoke puff. */
-const SMOKE_EVERY = 3;
+const SMOKE_EVERY = 2;
 /** Height above the braid where a pop happens, in metres, which is the top of a tube. */
 const POP_LIFT = 0.02;
 /** Camera shake trauma added by each pop when the player is close: tiny, but present. */
@@ -35,7 +33,10 @@ const FLICK_SPEED: [number, number] = [4, 6];
 /** Rate at which the flick slows down, per second. */
 const FLICK_DECAY = 5;
 /** Red paper shades for the bits thrown by each pop. */
-const PAPER_RED = [0x9c3b22, 0x7a1c14];
+const PAPER_RED = [0xd0301c, 0xb02418];
+/** White-hot colour of the flash sprite at each pop, and its size and life. */
+const FLASH_SPRITE_SIZE = 0.35;
+const FLASH_SPRITE_LIFE = 0.08;
 /** Gold spark colours for the burst of each pop. */
 const GOLD_SPARKS = [0xffc24a, 0xfff0c0, 0xffe08a];
 /** Hot white-gold point of each pop: a single very bright, very short spark. */
@@ -152,12 +153,12 @@ export class Ladi extends Cracker {
     // The burst: 20 to 40 gold sparks flung up and out, with the crackle flicker.
     this.fx.sparks.emit({
       position: this.at,
-      speed: [1.5, 3],
+      speed: [2, 4.5],
       spread: Math.PI / 2,
-      count: 20 + Math.floor(Math.random() * 21),
+      count: 30 + Math.floor(Math.random() * 21),
       colors: GOLD_SPARKS,
       life: [0.3, 0.6],
-      size: [0.018, 0.028],
+      size: [0.05, 0.08],
       crackle: true,
     });
     // A single very hot white point, the sharp bright centre of the pop.
@@ -167,8 +168,9 @@ export class Ladi extends Cracker {
       spread: 0,
       count: 1,
       colors: this.hotColors,
-      life: [0.05, 0.08],
-      size: [0.07, 0.09],
+      life: [FLASH_SPRITE_LIFE, FLASH_SPRITE_LIFE],
+      size: FLASH_SPRITE_SIZE,
+      gravity: 0,
     });
     // Five to ten red paper bits, heavier, which fall and tumble.
     this.fx.sparks.emit({
@@ -178,13 +180,14 @@ export class Ladi extends Cracker {
       count: 5 + Math.floor(Math.random() * 6),
       colors: PAPER_RED,
       life: [0.6, 1.0],
-      size: [0.012, 0.018],
+      size: [0.03, 0.045],
       gravity: 4,
       drag: 2,
     });
 
-    if (k % FLASH_EVERY === 0) this.fx.flashes.flash(this.at, 0xffe39a, 1.6, 3, 0.07);
-    if (k % SMOKE_EVERY === 1) this.fx.smoke.puff(this.at, { count: 1, size: 0.3, life: 2.5, rise: 0.25, color: SMOKE_GREY });
+    // Every pop lights the ground around it with a short white-gold flash.
+    this.fx.flashes.flash(this.at, 0xffe8b0, 4, 5, 0.08);
+    if (k % SMOKE_EVERY === 1) this.fx.smoke.puff(this.at, { count: 1, size: 0.4, life: 2.5, rise: 0.25, color: SMOKE_GREY });
 
     // Only a player standing near the string feels the pops.
     this.fx.camera.getWorldPosition(this.eye);

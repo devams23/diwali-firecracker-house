@@ -232,7 +232,7 @@ export class Game {
       camera: this.engine.camera,
       sparks: new SparkSystem(scene),
       smoke: new SmokeSystem(scene),
-      flashes: new FlashLights(scene),
+      flashes: new FlashLights(scene, 6),
       shake,
       audio: this.audio,
     };
