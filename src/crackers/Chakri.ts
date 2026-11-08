@@ -27,11 +27,24 @@ const CURVE_RATE = 1.1;
 const RIM_RADIUS = 0.035;
 /** Height of the rim above the floor, in metres. */
 const RIM_HEIGHT = 0.02;
-/** Sparks per second at full spin, split between the two nozzles. */
-const SPARK_RATE = 1000;
+/** Sparks per second at full spin, split between the nozzles. */
+const SPARK_RATE = 700;
+/** Nozzles spaced evenly round the rim; each throws a tangential jet, and together they trace spiral arms. */
+const NOZZLES = 4;
+/** Size range of a jet spark in metres: big enough to read as a fat glowing ember from 2 to 3 m. */
+const SPARK_SIZE: [number, number] = [0.05, 0.08];
+/** Lift added to each jet's direction, so the arcs rise off the ground a little before they fall and skip. */
+const JET_LIFT = 0.22;
+/** Seconds one full colour cycle takes: gold, emerald, rose and back, several times over the wheel's life. */
+const COLOR_CYCLE = 2.4;
 /** Radius of the glowing ring that sits above the wheel, in metres, and its height above the floor. */
-const GLOW_RADIUS = 0.042;
+const GLOW_RADIUS = 0.13;
 const GLOW_HEIGHT = 0.03;
+/** Radius of the soft pool of coloured light the wheel throws on the floor, and its height above it. */
+const POOL_RADIUS = 0.55;
+const POOL_HEIGHT = 0.004;
+/** Rate at which the ring's streak pattern turns, in rad/s, slow enough to see even though the wheel is a blur. */
+const STREAK_SPIN = 14;
 /** Largest tilt of the wheel while it wobbles, in radians. */
 const WOBBLE_TILT = 0.06;
 /** Wobble frequency in Hz. */
@@ -41,16 +54,17 @@ const HOP_SECONDS = 0.32;
 const HOP_HEIGHT: [number, number] = [0.02, 0.04];
 const HOP_GAP: [number, number] = [1.2, 2.2];
 /** Seconds between warm-light flickers on the ground. */
-const FLASH_INTERVAL = 0.12;
+const FLASH_INTERVAL = 0.07;
 /** Colours of the spark cycle, as hex numbers: gold, emerald, rose. */
 const GOLD = 0xffc24a;
 const EMERALD = 0x2fcf7a;
 const ROSE = 0xff4f7a;
 /** Warm light colour and its brightness range and reach. */
 const LIGHT_COLOR = 0xffa040;
-const LIGHT_INTENSITY: [number, number] = [0.8, 1.4];
-const LIGHT_DISTANCE = 3.5;
+const LIGHT_INTENSITY: [number, number] = [1.2, 2.6];
+const LIGHT_DISTANCE = 8;
 const TAU = Math.PI * 2;
+const WHITE = new THREE.Color(0xffffff);
 
 /**
  * Spark colour at a fraction `f` of the wheel's life: gold at the start, then emerald, then rose, then gold again at
@@ -63,6 +77,12 @@ export function chakriPhaseColor(f: number): number {
   const from = [GOLD, EMERALD, ROSE][leg];
   const to = [EMERALD, ROSE, GOLD][leg];
   return blendHex(from, to, u);
+}
+
+/** Fraction of the colour cycle reached `t` seconds after ignition: the phases repeat every COLOR_CYCLE seconds. */
+export function cycleFraction(t: number): number {
+  const x = (t / COLOR_CYCLE) % 1;
+  return x < 0 ? x + 1 : x;
 }
 
 /** Straight blend of two hex colours, channel by channel, with `u` in 0..1 from `a` to `b`. */
@@ -90,40 +110,84 @@ export function hopOffset(u: number, height: number): number {
   return 4 * height * u * (1 - u);
 }
 
-/** Shared glow texture and material, made the first time a chakri is lit so they are not rebuilt per wheel. */
-let glowTexture: THREE.CanvasTexture | null = null;
-let glowMaterial: THREE.MeshBasicMaterial | null = null;
+/** Shared textures, made the first time a chakri is lit so they are not rebuilt per wheel. */
+let ringTexture: THREE.CanvasTexture | null = null;
+let poolTexture: THREE.CanvasTexture | null = null;
 
 /**
- * The shared additive material for the rim glow: a radial gradient that is dark in the middle, bright at the rim
- * and fades out past it, so the spinning wheel reads as one blazing ring.
+ * The ring texture: a bright rim band with radial streaks (spokes of uneven length and brightness) running out
+ * of it, drawn white so the material colour can tint it. Turned slowly, the spokes make the wheel read as spinning.
  */
-function glowMat(): THREE.MeshBasicMaterial {
-  if (glowMaterial) return glowMaterial;
+function ringTex(): THREE.CanvasTexture {
+  if (ringTexture) return ringTexture;
+  const size = 256;
+  const c = size / 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    // Spokes: 28 thin wedges from just inside the rim to varying lengths beyond it, in uneven brightness.
+    ctx.globalCompositeOperation = 'lighter';
+    for (let k = 0; k < 28; k++) {
+      const a = (k / 28) * TAU + Math.sin(k * 12.9898) * 0.05;
+      const inner = c * 0.42;
+      const outer = c * (0.7 + 0.28 * Math.abs(Math.sin(k * 78.233)));
+      const g = ctx.createLinearGradient(c + Math.cos(a) * inner, c + Math.sin(a) * inner, c + Math.cos(a) * outer, c + Math.sin(a) * outer);
+      const alpha = 0.45 + 0.4 * Math.abs(Math.sin(k * 3.7));
+      g.addColorStop(0, `rgba(255,255,255,${alpha})`);
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.strokeStyle = g;
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(c + Math.cos(a) * inner, c + Math.sin(a) * inner);
+      ctx.lineTo(c + Math.cos(a) * outer, c + Math.sin(a) * outer);
+      ctx.stroke();
+    }
+    // Rim band: hot white at the wheel's edge, fading to nothing inside and outside it.
+    const rim = ctx.createRadialGradient(c, c, 0, c, c, c);
+    rim.addColorStop(0, 'rgba(255,255,255,0.10)');
+    rim.addColorStop(0.36, 'rgba(255,255,255,0.25)');
+    rim.addColorStop(0.5, 'rgba(255,255,255,1)');
+    rim.addColorStop(0.62, 'rgba(255,255,255,0.35)');
+    rim.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = rim;
+    ctx.fillRect(0, 0, size, size);
+  }
+  ringTexture = new THREE.CanvasTexture(canvas);
+  return ringTexture;
+}
+
+/** The floor pool texture: a soft white radial falloff, tinted by the material colour to light the ground. */
+function poolTex(): THREE.CanvasTexture {
+  if (poolTexture) return poolTexture;
   const size = 128;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    grad.addColorStop(0, 'rgba(255,200,90,0)');
-    grad.addColorStop(0.55, 'rgba(255,190,80,0)');
-    grad.addColorStop(0.8, 'rgba(255,230,150,1)');
-    grad.addColorStop(0.93, 'rgba(255,150,70,0.5)');
-    grad.addColorStop(1, 'rgba(255,120,50,0)');
-    ctx.fillStyle = grad;
+    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, 'rgba(255,255,255,0.9)');
+    g.addColorStop(0.35, 'rgba(255,255,255,0.35)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
     ctx.fillRect(0, 0, size, size);
   }
-  glowTexture = new THREE.CanvasTexture(canvas);
-  glowMaterial = new THREE.MeshBasicMaterial({
-    map: glowTexture,
+  poolTexture = new THREE.CanvasTexture(canvas);
+  return poolTexture;
+}
+
+/** An additive, unlit material around a shared texture; each wheel gets its own so it can tint it with its colour. */
+function additiveMat(map: THREE.Texture): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({
+    map,
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     toneMapped: false,
+    side: THREE.DoubleSide,
   });
-  return glowMaterial;
 }
 
 /** Chakri: a ground wheel that spins and wanders, throwing phased sparks from two rim nozzles and glowing as a disc. */
@@ -149,15 +213,23 @@ export class Chakri extends Cracker {
   private hopHeight = 0;
   /** Seconds since the last warm-light flicker. */
   private flashAcc = 0;
-  /** The rim glow, which sits above the wheel and rides its tilt. */
+  /** The ring of streaks above the wheel (it rides the wheel's tilt), and the pool of light it throws on the floor. */
   private glow: THREE.Mesh | null = null;
+  private pool: THREE.Mesh | null = null;
+  /** This wheel's two materials, tinted every frame with the phase colour and disposed with the wheel. */
+  private glowMat: THREE.MeshBasicMaterial | null = null;
+  private poolMat: THREE.MeshBasicMaterial | null = null;
+  /** The warm base the floor light is blended toward, so every phase still reads as firelight. */
+  private readonly warm = new THREE.Color(LIGHT_COLOR);
+  /** Scratch colour for tinting, reused every frame. */
+  private readonly tint = new THREE.Color();
   /** Scratch vectors, reused so sparks and the walk do not allocate. */
   private readonly rimPos = new THREE.Vector3();
   private readonly nozzle = new THREE.Vector3();
   private readonly dir = new THREE.Vector3();
   private readonly lightPos = new THREE.Vector3();
-  /** One-element colour list, reused for each emit so the phase colour needs no new array. */
-  private readonly colorBuf: number[] = [GOLD];
+  /** Colour list reused for each emit: the phase colour twice and a white-gold, so jets are mostly coloured with hot flecks. */
+  private readonly colorBuf: number[] = [GOLD, GOLD, GOLD, 0xfff0c0];
 
   /** Builds the chakri around its model; spinning starts when the fuse runs out. */
   constructor(fx: FxContext, model: THREE.Group) {
@@ -173,12 +245,20 @@ export class Chakri extends Cracker {
     this.fx.audio.play('whistle', this.rimPos, { duration: CHAKRI_SECONDS });
     this.fx.audio.play('fizz', this.rimPos, { duration: CHAKRI_SECONDS });
 
-    // The glow is a flat ring just above the wheel, sized to the rim so it reads as the spinning edge.
+    // The ring is a flat disc just above the wheel carrying the streak texture; it turns on its own, slowly.
     const geo = new THREE.CircleGeometry(GLOW_RADIUS, 40);
     geo.rotateX(-Math.PI / 2);
-    this.glow = new THREE.Mesh(geo, glowMat());
+    this.glowMat = additiveMat(ringTex());
+    this.glow = new THREE.Mesh(geo, this.glowMat);
     this.glow.position.y = GLOW_HEIGHT;
     this.object.add(this.glow);
+
+    // The pool lies on the floor, a child of the scene rather than the spinning wheel, and follows it each frame.
+    const poolGeo = new THREE.CircleGeometry(POOL_RADIUS, 32);
+    poolGeo.rotateX(-Math.PI / 2);
+    this.poolMat = additiveMat(poolTex());
+    this.pool = new THREE.Mesh(poolGeo, this.poolMat);
+    this.fx.scene.add(this.pool);
   }
 
   /** Spins, wobbles, hops, wanders, throws phased rim sparks and flickers its light; ends after seven seconds. */
@@ -201,10 +281,22 @@ export class Chakri extends Cracker {
     this.hop(t);
     this.object.position.y = this.groundY + hopOffset(this.hopStart < 0 ? 0 : (t - this.hopStart) / HOP_SECONDS, this.hopHeight);
 
-    if (this.glow) {
-      // The glow pulses very slightly in size, so the disc looks like it is blazing rather than static.
+    // Tint the ring and the floor pool with the current phase colour, so the colour cycle is seen on the wheel itself.
+    const tintHex = chakriPhaseColor(cycleFraction(t));
+    this.tint.setHex(tintHex);
+    const spunUp = Math.min(1, t / SPIN_RAMP);
+    const flare = 0.85 + 0.15 * Math.sin(t * 53) + 0.1 * Math.sin(t * 31);
+    if (this.glow && this.glowMat) {
+      // The streak pattern counter-turns against the wheel's own spin, leaving a slow readable rotation, and the
+      // ring pulses in size and brightness so the disc looks like it is blazing rather than static.
+      this.glow.rotation.y = t * STREAK_SPIN - this.object.rotation.y;
       const pulse = 1 + 0.06 * Math.sin(t * 40);
       this.glow.scale.set(pulse, 1, pulse);
+      this.glowMat.color.copy(this.tint).lerp(WHITE, 0.35).multiplyScalar(0.6 * flare * spunUp);
+    }
+    if (this.pool && this.poolMat) {
+      this.pool.position.set(this.object.position.x, this.groundY + POOL_HEIGHT, this.object.position.z);
+      this.poolMat.color.copy(this.tint).multiplyScalar(0.2 * flare * spunUp);
     }
 
     this.wander(dt);
@@ -254,26 +346,30 @@ export class Chakri extends Cracker {
     if (n <= 0) return;
     this.sparkAcc -= n;
 
-    // Rim velocity: the rim point at local +x moves along local -z, and the one at -x along +z.
+    // Rim speed of each nozzle: the spin rate times the rim radius, so the faster the wheel the farther the jets reach.
     const rimSpeed = Math.abs(this.spin) * RIM_RADIUS;
-    const colour = chakriPhaseColor(t / CHAKRI_SECONDS);
+    const colour = chakriPhaseColor(cycleFraction(t));
     this.colorBuf[0] = colour;
-    const half = Math.ceil(n / 2);
-    for (let side = 0; side < 2; side++) {
-      const sign = side === 0 ? 1 : -1;
-      this.nozzle.set(sign * RIM_RADIUS, RIM_HEIGHT, 0);
+    this.colorBuf[1] = colour;
+    this.colorBuf[2] = colour;
+    const each = Math.ceil(n / NOZZLES);
+    for (let k = 0; k < NOZZLES; k++) {
+      // Nozzle k sits at angle k/NOZZLES round the rim; its jet leaves along the tangent, in the spin direction.
+      const a = (k / NOZZLES) * TAU;
+      this.nozzle.set(Math.cos(a) * RIM_RADIUS, RIM_HEIGHT, Math.sin(a) * RIM_RADIUS);
       this.object.localToWorld(this.nozzle);
-      this.dir.set(0, 0, -sign).applyQuaternion(this.object.quaternion);
+      this.dir.set(Math.sin(a), JET_LIFT, -Math.cos(a)).applyQuaternion(this.object.quaternion);
       this.fx.sparks.emit({
         position: this.nozzle,
         direction: this.dir,
-        speed: rimSpeed * (0.8 + Math.random() * 0.4),
-        spread: 0.45,
-        count: half,
+        speed: rimSpeed * (0.7 + Math.random() * 0.5),
+        spread: 0.4,
+        count: each,
         colors: this.colorBuf,
-        life: [0.4, 0.9],
-        size: [0.018, 0.03],
-        drag: 0.6,
+        life: [0.5, 1.0],
+        size: SPARK_SIZE,
+        gravity: 4,
+        drag: 0.9,
         crackle: true,
       });
     }
@@ -285,14 +381,22 @@ export class Chakri extends Cracker {
     if (this.flashAcc < FLASH_INTERVAL) return;
     this.flashAcc -= FLASH_INTERVAL;
     this.object.getWorldPosition(this.lightPos);
-    this.lightPos.y += 0.03;
+    this.lightPos.y += 0.7;
     const k = LIGHT_INTENSITY[0] + Math.random() * (LIGHT_INTENSITY[1] - LIGHT_INTENSITY[0]);
-    this.fx.flashes.flash(this.lightPos, LIGHT_COLOR, k, LIGHT_DISTANCE, FLASH_INTERVAL + 0.04);
+    this.tint.setHex(chakriPhaseColor(cycleFraction(this.activeTime))).lerp(this.warm, 0.5);
+    this.fx.flashes.flash(this.lightPos, this.tint.getHex(), k, LIGHT_DISTANCE, FLASH_INTERVAL + 0.04);
   }
 
-  /** On top of the base cleanup: frees the glow's own geometry, keeping the shared material and texture. */
+  /** On top of the base cleanup: frees the wheel's own materials and the floor pool, keeping the shared textures. */
   override dispose(): void {
+    this.glowMat?.dispose();
+    this.poolMat?.dispose();
+    this.pool?.removeFromParent();
+    this.pool?.geometry.dispose();
     this.glow = null;
+    this.pool = null;
+    this.glowMat = null;
+    this.poolMat = null;
     super.dispose();
   }
 }
