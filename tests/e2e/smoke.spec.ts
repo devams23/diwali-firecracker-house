@@ -3,6 +3,7 @@
 // shot, the anar fountain at its peak and a salvo of sky shells, check that sparks show on screen, and write the
 // screenshots to screenshots/ as deliverables.
 import { test, expect, type Page } from '@playwright/test';
+import { STALL_CENTRE } from '../../src/world/stallLayout';
 
 /** A PNG screenshot as returned by Page.screenshot(). */
 type Png = Awaited<ReturnType<Page['screenshot']>>;
@@ -38,6 +39,14 @@ const INTRO_GONE_MS = 3000;
 const BURST_TIMEOUT_MS = 60000;
 /** Real milliseconds to let the hands settle into their held pose before the held shot is taken. */
 const HELD_SETTLE_MS = 1500;
+/**
+ * Real milliseconds to let a fresh view render before a wide shot. Software WebGL draws about a frame a second, so a
+ * shot taken straight after a move can catch a frame that has not been drawn yet.
+ */
+const VIEW_SETTLE_MS = 2500;
+/** Stall shot: the eye stands 2.4 m south of the counter, turned to face it, and tipped 20 degrees down to the sign. */
+const STALL_VIEW_Z = STALL_CENTRE.z + 2.4;
+const STALL_VIEW_PITCH = -0.35;
 /**
  * Seconds fast-forwarded after the anar is lit for its shot: the 2.5 s fuse plus 2.2 s, so the spray is at its full
  * height rather than still ramping up.
@@ -106,9 +115,28 @@ test('loads without console errors, starts from the intro and renders a lit vill
 
   // The start view, with the hands and the hotbar of crackers in the foreground.
   await page.screenshot({ path: 'screenshots/hands.png' });
+  // The wide shot waits for the view to settle, so it is not caught between two software-rendered frames.
+  await page.waitForTimeout(VIEW_SETTLE_MS);
   const aangan = await page.screenshot({ path: 'screenshots/aangan.png' });
   expect((await pixelStats(page, aangan)).mean).toBeGreaterThan(MIN_MEAN_LUMINANCE);
 
+  expect(errors).toEqual([]);
+});
+
+test('the cracker stall reads bright from the walk, with the hotbar in view', async ({ page }) => {
+  const errors = await watchErrors(page);
+  await page.goto('/?debug');
+  await startFromIntro(page);
+
+  // Stand south of the counter, facing it and tipped down to the signboard.
+  await page.evaluate(
+    ({ x, z, pitch }: { x: number; z: number; pitch: number }) => window.__diwali!.teleport(x, z, 0, pitch),
+    { x: STALL_CENTRE.x, z: STALL_VIEW_Z, pitch: STALL_VIEW_PITCH },
+  );
+  await page.waitForTimeout(VIEW_SETTLE_MS);
+  const stall = await page.screenshot({ path: 'screenshots/stall.png' });
+
+  expect((await pixelStats(page, stall)).mean).toBeGreaterThan(MIN_MEAN_LUMINANCE);
   expect(errors).toEqual([]);
 });
 
