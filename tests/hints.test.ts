@@ -12,6 +12,7 @@ function state(over: Partial<PlayerState> = {}): PlayerState {
     totalCount: 9,
     placedUnlit: 0,
     burstCount: 0,
+    diyasLit: 3,
     ...over,
   };
 }
@@ -22,7 +23,7 @@ describe('nextHint', () => {
   });
 
   it('asks the player to touch a fuse when a cracker is placed unlit', () => {
-    expect(nextHint(state({ placedUnlit: 1 }))).toBe('Touch the agarbatti to the fuse — click');
+    expect(nextHint(state({ placedUnlit: 1 }))).toBe('Aim at the fuse and click to light it');
   });
 
   it('says the selected kind is out and to restock when its count is zero', () => {
@@ -34,6 +35,13 @@ describe('nextHint', () => {
   });
 
   it('explains choosing and placing when the selected kind has crackers', () => {
-    expect(nextHint(state())).toBe('F — place · aim the agarbatti at the fuse');
+    expect(nextHint(state())).toBe('F — place · aim at the fuse and click');
+  });
+
+  it('invites a newcomer to light the verandah diyas before anything else but an unlit fuse', () => {
+    const hint = 'Light the diyas on the verandah — aim and click · दीप जलाइए';
+    expect(nextHint(state({ diyasLit: 0, visitedStall: false }))).toBe(hint);
+    expect(nextHint(state({ diyasLit: 0, selectedCount: 0 }))).toBe(hint);
+    expect(nextHint(state({ diyasLit: 0, placedUnlit: 1 }))).toBe('Aim at the fuse and click to light it');
   });
 });

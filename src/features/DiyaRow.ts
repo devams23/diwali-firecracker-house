@@ -45,6 +45,15 @@ export function flameGrowth(age: number): number {
   return 1 - (1 - u) * (1 - u);
 }
 
+/** Peak opacity of an unlit lamp's beckoning glint: enough to catch the eye, far below a real flame's 0.55 halo. */
+const BECKON_OPACITY = 0.3;
+/** Size (metres) of the beckoning glint at mid-breath, about half a lit lamp's halo. */
+const BECKON_SIZE = 0.13;
+/** Breathing speed of the glint, in radians per second (one breath about every 2.6 s). */
+const BECKON_RATE = 2.4;
+/** Phase step between neighbouring lamps, so the glint travels along the row instead of pulsing all at once. */
+const BECKON_STAGGER = 0.55;
+
 /** One lamp of the row and its light-up state. */
 interface RowDiya {
   /** Root group: bowl, wick, flame, halo and the aim proxy. */
@@ -158,8 +167,11 @@ export class DiyaRow implements Updatable {
 
   /** Animates the flames and the glow, and runs the golden shimmer while the celebration lasts. */
   update(dt: number, t: number): void {
-    for (const d of this.diyas) {
-      if (d.age < 0) continue;
+    this.diyas.forEach((d, i) => {
+      if (d.age < 0) {
+        this.beckon(d, i, t);
+        return;
+      }
       d.age += dt;
       const g = flameGrowth(d.age);
       const f = flicker(t, d.phase);
@@ -167,8 +179,18 @@ export class DiyaRow implements Updatable {
       d.halo.scale.setScalar(0.28 * g * (0.94 + 0.06 * f));
       (d.halo.material as THREE.SpriteMaterial).opacity = 0.55 * g;
       d.bowlMat.emissive.setHex(BOWL_GLOW).multiplyScalar(g);
-    }
+    });
     if (this.shimmerLeft > 0) this.stepShimmer(dt);
+  }
+
+  /**
+   * An unlit lamp breathes a faint glint at its wick, and the glints ripple along the row from one end to the other,
+   * so a newcomer sees at a glance that these lamps are waiting for the agarbatti.
+   */
+  private beckon(d: RowDiya, i: number, t: number): void {
+    const w = 0.5 + 0.5 * Math.sin(t * BECKON_RATE - i * BECKON_STAGGER);
+    d.halo.scale.setScalar(BECKON_SIZE * (0.75 + 0.5 * w));
+    (d.halo.material as THREE.SpriteMaterial).opacity = BECKON_OPACITY * w;
   }
 
   /** Bell and shankh together, then the shimmer begins. */

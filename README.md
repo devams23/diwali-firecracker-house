@@ -37,7 +37,7 @@ The Playwright run starts its own dev server on port 5199. The first run needs
 | G | Pick up or set down the thaali |
 | F | Set the selected cracker down on the ground in front of you (hand-held sparklers go into your left hand) |
 | Q or scroll | Choose a cracker from the thaali |
-| Click | Touch the agarbatti tip to a ground fuse, or light a sparkler you are holding |
+| Click | Light the cracker or diya under the crosshair with the agarbatti, or a sparkler you are holding |
 | M | Sound on or off |
 | P | Photo mode on or off: hides the HUD and hands and adds a soft vignette and warm grade |
 | K | Save the current frame as a PNG (in photo mode) |

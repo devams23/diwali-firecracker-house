@@ -15,6 +15,8 @@ export interface PlayerState {
   placedUnlit: number;
   /** Crackers fired so far this session. */
   burstCount: number;
+  /** Lamps of the verandah diya row lit so far; while it is zero the first hint invites the player to light them. */
+  diyasLit: number;
 }
 
 /**
@@ -22,12 +24,14 @@ export interface PlayerState {
  * is always the one shown.
  */
 export function nextHint(s: PlayerState): string {
-  if (s.placedUnlit > 0) return 'Touch the agarbatti to the fuse — click';
+  if (s.placedUnlit > 0) return 'Aim at the fuse and click to light it';
+  // Lighting the lamps comes first, as at home: a newcomer is told the verandah diyas are waiting for their agarbatti.
+  if (s.diyasLit === 0) return 'Light the diyas on the verandah — aim and click · दीप जलाइए';
   if (s.selectedCount === 0) {
     return s.totalCount > 0
       ? `Out of ${s.selectedName} — restock at the stall`
       : 'Out of crackers — restock at the stall';
   }
   if (!s.visitedStall) return 'Pick crackers at the stall · E';
-  return 'F — place · aim the agarbatti at the fuse';
+  return 'F — place · aim at the fuse and click';
 }

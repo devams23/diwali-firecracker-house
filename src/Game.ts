@@ -148,6 +148,7 @@ export class Game {
     totalCount: 0,
     placedUnlit: 0,
     burstCount: 0,
+    diyasLit: 0,
   };
   private readonly farQueue: FarBang[] = [];
   private readonly finaleCounter = new FinaleCounter();
@@ -463,6 +464,7 @@ export class Game {
     s.totalCount = this.inventory.total;
     s.placedUnlit = this.crackers.unlitCount;
     s.burstCount = this.finaleCounter.count;
+    s.diyasLit = this.diyaRow.lit;
     this.hotbar.update(this.inventory);
   }
 

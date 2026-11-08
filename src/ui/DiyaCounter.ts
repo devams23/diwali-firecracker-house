@@ -6,6 +6,8 @@ import './diyaCounter.css';
 export class DiyaCounter {
   private readonly root: HTMLDivElement;
   private readonly count: HTMLSpanElement;
+  /** One line under the plaque telling a newcomer what the count is for; it goes once every lamp is lit. */
+  private readonly caption: HTMLDivElement;
 
   /** Builds the plaque inside `parent`, hidden until show(true) is called. */
   constructor(parent: HTMLElement, total: number) {
@@ -17,7 +19,10 @@ export class DiyaCounter {
     word.textContent = 'दीप';
     this.count = document.createElement('span');
     this.count.className = 'diya-counter-count';
-    this.root.append(word, this.count);
+    this.caption = document.createElement('div');
+    this.caption.className = 'diya-counter-caption';
+    this.caption.textContent = 'Light the verandah lamps with your agarbatti';
+    this.root.append(word, this.count, this.caption);
     parent.appendChild(this.root);
     this.set(0, total);
   }
@@ -32,5 +37,6 @@ export class DiyaCounter {
     this.count.textContent = `${lit} / ${total}`;
     this.root.classList.toggle('is-started', lit > 0);
     this.root.classList.toggle('is-done', lit >= total);
+    this.caption.hidden = lit >= total;
   }
 }
