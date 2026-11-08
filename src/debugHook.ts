@@ -10,6 +10,8 @@ export interface DiwaliDebug {
   place(kind: CrackerKind): void;
   /** Lights every cracker on the ground that has not been lit yet. */
   lightAll(): void;
+  /** Lights the first n diyas of the verandah row (all eleven when n is omitted). */
+  lightDiyas(n?: number): void;
   /** Moves the player to (x, z) on the ground, turns them to `yaw` radians and tilts the view to `pitch` radians. */
   teleport(x: number, z: number, yaw: number, pitch?: number): void;
   /** A copy of the gameplay state the prompts use, including the finale burst count. */

@@ -398,6 +398,76 @@ function earRing(ctx: AudioContext, out: AudioNode, o: RecipeOpts): SoundHandle 
   return v.handle();
 }
 
+/**
+ * Chime for lighting a diya: two pure sine partials (a fundamental near 1.3 kHz and a fifth above it) struck softly
+ * together, the upper one dying sooner, so it rings like a small brass bell. `pitch` varies it from lamp to lamp.
+ */
+function chime(ctx: AudioContext, out: AudioNode, o: RecipeOpts): SoundHandle {
+  const v = new Voice(ctx, out, o.onEnd);
+  const t = ctx.currentTime;
+  strike(v.gain.gain, t, 0.5 * o.volume, 0.004, 1.6);
+  const partials: [number, number, number][] = [[1320, 1, 1.6], [1980, 0.45, 0.9], [3520, 0.12, 0.4]];
+  for (const [f, amp, dur] of partials) {
+    const osc = oscillator(ctx, v, 'sine', f * o.pitch);
+    const g = v.track(ctx.createGain());
+    strike(g.gain, t, amp, 0.003, dur);
+    osc.connect(g).connect(v.gain);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
+  }
+  return v.handle();
+}
+
+/** Temple bell: inharmonic sine partials over a 440 Hz strike tone, ringing for about three seconds. */
+function bell(ctx: AudioContext, out: AudioNode, o: RecipeOpts): SoundHandle {
+  const v = new Voice(ctx, out, o.onEnd);
+  const t = ctx.currentTime;
+  strike(v.gain.gain, t, 0.55 * o.volume, 0.006, 3.4);
+  const partials: [number, number, number][] = [[1, 1, 3.2], [2.01, 0.6, 2.4], [2.76, 0.4, 1.8], [5.4, 0.2, 1.0], [8.9, 0.08, 0.5]];
+  for (const [ratio, amp, dur] of partials) {
+    const osc = oscillator(ctx, v, 'sine', 440 * ratio * o.pitch);
+    const g = v.track(ctx.createGain());
+    strike(g.gain, t, amp, 0.004, dur);
+    osc.connect(g).connect(v.gain);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
+  }
+  return v.handle();
+}
+
+/**
+ * Shankh (conch) call: a warm low tone, sawtooth softened by a lowpass, that swells in over 0.6 s, holds with a slight
+ * vibrato and fades out, about three seconds in all.
+ */
+function shankh(ctx: AudioContext, out: AudioNode, o: RecipeOpts): SoundHandle {
+  const v = new Voice(ctx, out, o.onEnd);
+  const t = ctx.currentTime;
+  const dur = 3;
+  const base = 233 * o.pitch;
+  const filt = biquad(ctx, v, 'lowpass', 900, 1.2);
+  filt.connect(v.gain);
+  v.gain.gain.setValueAtTime(0, t);
+  v.gain.gain.linearRampToValueAtTime(0.32 * o.volume, t + 0.6);
+  v.gain.gain.setValueAtTime(0.32 * o.volume, t + 1.8);
+  v.gain.gain.linearRampToValueAtTime(0, t + dur);
+  const vib = oscillator(ctx, v, 'sine', 5.2);
+  const vibDepth = v.track(ctx.createGain());
+  vibDepth.gain.value = 3;
+  vib.connect(vibDepth);
+  for (const mult of [1, 2.002, 3.005]) {
+    const osc = oscillator(ctx, v, mult === 1 ? 'sawtooth' : 'triangle', base * mult);
+    vibDepth.connect(osc.frequency);
+    const g = v.track(ctx.createGain());
+    g.gain.value = mult === 1 ? 1 : 0.35 / mult;
+    osc.connect(g).connect(filt);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
+  }
+  vib.start(t);
+  vib.stop(t + dur + 0.05);
+  return v.handle();
+}
+
 /** Recipe for every named sound; AudioEngine looks sounds up here by name. */
 export const RECIPES: Record<SoundName, Recipe> = {
   fuse,
@@ -417,4 +487,7 @@ export const RECIPES: Record<SoundName, Recipe> = {
   pickup,
   place,
   earRing,
+  chime,
+  bell,
+  shankh,
 };

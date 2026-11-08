@@ -49,7 +49,7 @@ export function flicker(t: number, phase: number): number {
 }
 
 /** Shared lathe geometry for the bowl at unit scale. */
-function bowlGeometry(): THREE.LatheGeometry {
+export function bowlGeometry(): THREE.LatheGeometry {
   return new THREE.LatheGeometry(
     BOWL_PROFILE.map(([r, y]) => new THREE.Vector2(r, y)),
     16,
@@ -59,7 +59,7 @@ function bowlGeometry(): THREE.LatheGeometry {
 let flameTex: THREE.CanvasTexture | null = null;
 
 /** Teardrop flame drawn once on canvas: bright at the wick, fading to transparent at the tip. */
-function flameTexture(): THREE.CanvasTexture {
+export function flameTexture(): THREE.CanvasTexture {
   if (flameTex) return flameTex;
   const canvas = document.createElement('canvas');
   canvas.width = 64;

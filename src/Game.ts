@@ -46,6 +46,8 @@ import { Highlighter } from './ui/Highlight';
 import { Pause } from './ui/Pause';
 import { Finale, FinaleCounter, countsTowardFinale } from './ui/Finale';
 import { Toast } from './ui/Toast';
+import { DiyaCounter } from './ui/DiyaCounter';
+import { DiyaRow, DIYA_COUNT } from './features/DiyaRow';
 import { PhotoMode } from './ui/PhotoMode';
 import { debugRequested, installDebugHook } from './debugHook';
 
@@ -63,7 +65,7 @@ const INTRO_WALK_METRES = 1;
 /** Collision radius of the player; matches FirstPersonController so the gate walk stops at the same walls. */
 const PLAYER_RADIUS = 0.3;
 /** The keys that pick a hotbar slot directly, in slot order: Digit1 to Digit9, then Digit0. */
-const HOTBAR_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0'];
+const HOTBAR_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0', 'Minus'];
 /** Crackers the player starts with, so play begins at once: a few of each common kind. */
 const STARTER_PACK: [CrackerKind, number][] = [
   ['phuljhadi', 5],
@@ -149,6 +151,9 @@ export class Game {
   private readonly pause: Pause;
   private readonly finale: Finale;
   private readonly toast: Toast;
+  /** The row of unlit diyas the player lights with the agarbatti, and the "दीप n / 11" plaque that counts them. */
+  private readonly diyaRow: DiyaRow;
+  private readonly diyaCounter: DiyaCounter;
   private readonly hotbar: Hotbar;
   private readonly tmpDir = new THREE.Vector3();
   private readonly tmpForward = new THREE.Vector3();
@@ -269,6 +274,13 @@ export class Game {
     this.hotbar = new Hotbar(uiEl);
     this.prompt = new Prompt(uiEl);
     this.crosshair = new Crosshair(uiEl);
+    // Diya row: lit one by one with the agarbatti; the last one sets off a golden celebration and a greeting.
+    this.diyaCounter = new DiyaCounter(uiEl, DIYA_COUNT);
+    this.diyaRow = new DiyaRow(this.fx);
+    scene.add(this.diyaRow.object);
+    this.engine.add(this.diyaRow);
+    this.diyaRow.onLit = (lit, total) => this.diyaCounter.set(lit, total);
+    this.diyaRow.onComplete = () => this.toast.show('शुभ दीपावली · Shubh Deepavali', 6);
     this.finale = new Finale(uiEl);
     this.pause = new Pause(uiEl, {
       onResume: () => this.input.requestLock(),
@@ -302,6 +314,7 @@ export class Game {
       installDebugHook({
         place: (kind) => this.debugPlace(kind),
         lightAll: () => this.debugLightAll(),
+        lightDiyas: (n) => this.debugLightDiyas(n),
         teleport: (x, z, yaw, pitch) => this.debugTeleport(x, z, yaw, pitch),
         state: () => ({ ...this.state }),
         heldShot: () => this.debugHeldShot(),
@@ -322,6 +335,18 @@ export class Game {
    * their label names the pack that E will add.
    */
   private buildInteractables(): void {
+    // Each unlit diya can be aimed at while the agarbatti is lit; E or a click touches the flame to its wick.
+    this.diyaRow.roots.forEach((root, i) => {
+      this.addInteractable({
+        id: `diya-${i}`,
+        root,
+        label: () => (!this.diyaRow.isLit(i) && this.agarbatti.lit ? 'Click — light the diya' : null),
+        act: () => {
+          this.hands.poke();
+          this.diyaRow.light(i);
+        },
+      });
+    });
     for (const box of this.props.stallBoxes) {
       const info = CRACKERS[box.kind];
       const label = `E — Take ${info.pack} ${info.label}`;
@@ -449,6 +474,7 @@ export class Game {
   /** Shows the crosshair and the target highlight for this frame's focus, and hides them while play is not live. */
   private updateAim(): void {
     this.crosshair.show(this.started && !this.paused);
+    this.diyaCounter.show(this.started && !this.paused);
     this.highlighter.set(this.focus ? this.focus.root : null);
     this.crosshair.setTarget(this.focus ? this.focus.label(this.state) : null);
   }
@@ -503,6 +529,11 @@ export class Game {
     if (this.leftHeld && this.leftHeld.timer.phase === 'idle') {
       this.hands.poke();
       this.leftHeld.light();
+      return;
+    }
+    // A click on an aimed diya lights it (the same action as E on that diya).
+    if (this.focus && this.focus.id.startsWith('diya-')) {
+      this.focus.act();
       return;
     }
     const target = this.crackers.nearestUnlit(this.agarbatti.tipWorld, TIP_REACH);
@@ -618,6 +649,11 @@ export class Game {
   private debugSkyShow(yaw: number): void {
     this.sky.salvo(yaw);
     this.engine.advance(DEBUG_SKY_LEAD_SECONDS);
+  }
+
+  /** Debug hook: lights the first `n` diyas of the row (all of them when n is omitted). */
+  private debugLightDiyas(n = DIYA_COUNT): void {
+    for (let i = 0; i < n; i++) this.diyaRow.light(i);
   }
 
   /** Debug hook: lights every ground cracker that is still unlit. */

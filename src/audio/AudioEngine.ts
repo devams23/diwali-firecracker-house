@@ -23,7 +23,10 @@ export type SoundName =
   | 'ignite'
   | 'pickup'
   | 'place'
-  | 'earRing';
+  | 'earRing'
+  | 'chime'
+  | 'bell'
+  | 'shankh';
 
 /** Handle returned by play(); safe to call at any time, including after the sound has finished. */
 export interface SoundHandle {
