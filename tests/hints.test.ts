@@ -3,11 +3,10 @@
 import { describe, it, expect } from 'vitest';
 import { nextHint, type PlayerState } from '../src/player/PlayerState';
 
-/** Base state: the agarbatti is lit and the selected kind has crackers left. */
+/** Base state: the stall has been visited and the selected kind has crackers left. */
 function state(over: Partial<PlayerState> = {}): PlayerState {
   return {
-    hasAgarbatti: true,
-    agarbattiLit: true,
+    visitedStall: true,
     selectedName: 'Anar',
     selectedCount: 3,
     totalCount: 9,
@@ -18,14 +17,8 @@ function state(over: Partial<PlayerState> = {}): PlayerState {
 }
 
 describe('nextHint', () => {
-  it('asks the player to take the agarbatti when they do not have it', () => {
-    expect(nextHint(state({ hasAgarbatti: false, agarbattiLit: false }))).toBe(
-      'Take the agarbatti from the tulsi chaura',
-    );
-  });
-
-  it('asks the player to light the agarbatti before anything else', () => {
-    expect(nextHint(state({ agarbattiLit: false, placedUnlit: 1 }))).toBe('Light the agarbatti at the diya first');
+  it('points a new player at the stall', () => {
+    expect(nextHint(state({ visitedStall: false }))).toBe('Pick crackers at the stall · E');
   });
 
   it('asks the player to touch a fuse when a cracker is placed unlit', () => {
@@ -41,6 +34,6 @@ describe('nextHint', () => {
   });
 
   it('explains choosing and placing when the selected kind has crackers', () => {
-    expect(nextHint(state())).toBe('1–0 or scroll to choose · F to place it');
+    expect(nextHint(state())).toBe('F — place · aim the agarbatti at the fuse');
   });
 });

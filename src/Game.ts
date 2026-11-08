@@ -58,8 +58,6 @@ const INTRO_SECONDS = 2.5;
 const INTRO_WALK_METRES = 1;
 /** Collision radius of the player; matches FirstPersonController so the gate walk stops at the same walls. */
 const PLAYER_RADIUS = 0.3;
-/** Height of the brass cup above the stand's origin, where the agarbatti's base sits. */
-const STAND_CUP_HEIGHT = 0.042;
 /** The keys that pick a hotbar slot directly, in slot order: Digit1 to Digit9, then Digit0. */
 const HOTBAR_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0'];
 /** Crackers the player starts with, so play begins at once: a few of each common kind. */
@@ -133,8 +131,7 @@ export class Game {
   private readonly crosshair: Crosshair;
   private readonly highlighter = new Highlighter();
   private readonly state: PlayerState = {
-    hasAgarbatti: false,
-    agarbattiLit: false,
+    visitedStall: false,
     selectedName: '',
     selectedCount: 0,
     totalCount: 0,
@@ -160,8 +157,8 @@ export class Game {
   private leftHeld: HandHeld | null = null;
   /** The interactable under the crosshair this frame, or null. */
   private focus: Interactable | null = null;
-  private hasAgarbatti = false;
-  private agarbattiLit = false;
+  /** True once a pack has been taken from the stall; retires the first prompt. */
+  private visitedStall = false;
   private started = false;
   private lockSeen = false;
   private paused = false;
@@ -197,8 +194,7 @@ export class Game {
     this.engine.add(this.sky);
     this.engine.add(new Festoons(scene));
 
-    // Five real lit lamps: the tulsi diya, two at the door and two in the aangan niches. The tulsi diya comes first
-    // and is kept by name so the crosshair can aim at it.
+    // Five real lit lamps: the tulsi diya (decoration only now), two at the door and two in the aangan niches.
     const tulsi = new Diya(this.props.tulsiDiyaPos, { light: true });
     const litPositions: THREE.Vector3[] = [
       new THREE.Vector3(house.doorPosition.x - 1.25, 0.3, -8.2),
@@ -246,10 +242,9 @@ export class Game {
     for (const [kind, n] of STARTER_PACK) this.inventory.add(kind, n);
     this.agarbatti = new Agarbatti(this.fx);
     this.engine.add(this.agarbatti);
-    // The agarbatti stands upright in the brass cup from the start; taking it reparents it to the right hand.
-    const standPos = this.props.agarbattiStandPos;
-    this.agarbatti.object.position.set(standPos.x, standPos.y + STAND_CUP_HEIGHT, standPos.z);
-    scene.add(this.agarbatti.object);
+    // The player starts with a lit agarbatti in the right hand, ready to touch to any fuse.
+    this.hands.holdRight(this.agarbatti.object);
+    this.agarbatti.light();
 
     // Sky bursts report their bangs here; the bang plays after the sound's travel time (see frame()).
     this.sky.onFarBurst = (pos, delaySec) => {
@@ -273,7 +268,7 @@ export class Game {
     // Added last so the opening card sits above everything else until it fades.
     this.intro = new Intro(uiEl, () => this.begin());
 
-    this.buildInteractables(tulsi.object);
+    this.buildInteractables();
 
     // Clicking the canvas after the intro captures the pointer again, so the view turns with the mouse.
     this.engine.renderer.domElement.addEventListener('click', () => {
@@ -313,10 +308,10 @@ export class Game {
   }
 
   /**
-   * Creates every interactable: the stall boxes (each buys a pack), the agarbatti stand and the tulsi diya. The
-   * stall boxes are the only way to restock, so their label names the pack that E will add.
+   * Creates every interactable: the stall boxes, each of which buys a pack. They are the only way to restock, so
+   * their label names the pack that E will add.
    */
-  private buildInteractables(tulsiObject: THREE.Object3D): void {
+  private buildInteractables(): void {
     for (const box of this.props.stallBoxes) {
       const info = CRACKERS[box.kind];
       const label = `E — Take ${info.pack} ${info.label}`;
@@ -327,28 +322,6 @@ export class Game {
         act: () => this.buyPack(box.kind, box.position),
       });
     }
-
-    this.addInteractable({
-      id: 'agarbatti-stand',
-      root: this.props.agarbattiStand,
-      label: () => (this.hasAgarbatti ? null : 'E — Take the agarbatti'),
-      act: () => {
-        this.hasAgarbatti = true;
-        this.hands.holdRight(this.agarbatti.object);
-      },
-    });
-
-    this.addInteractable({
-      id: 'tulsi-diya',
-      root: tulsiObject,
-      label: () => (this.hasAgarbatti && !this.agarbattiLit ? 'E — Light the agarbatti at the diya' : null),
-      act: () => {
-        this.agarbattiLit = true;
-        this.agarbatti.light();
-        this.audio.play('ignite', this.props.tulsiDiyaPos);
-        events.emit('lit', { kind: 'agarbatti' });
-      },
-    });
   }
 
   /** Adds an interactable to the list and registers its root as an aim target. */
@@ -376,6 +349,7 @@ export class Game {
   private buyPack(kind: CrackerKind, at: THREE.Vector3): void {
     const info = CRACKERS[kind];
     this.inventory.add(kind, info.pack);
+    this.visitedStall = true;
     this.audio.play('place', at);
     this.toast.show(`+${info.pack} ${info.label} · ${info.hindi}`);
   }
@@ -430,8 +404,7 @@ export class Game {
   private syncState(): void {
     const s = this.state;
     const sel = this.inventory.selected;
-    s.hasAgarbatti = this.hasAgarbatti;
-    s.agarbattiLit = this.agarbattiLit;
+    s.visitedStall = this.visitedStall;
     s.selectedName = CRACKERS[sel].label;
     s.selectedCount = this.inventory.count(sel);
     s.totalCount = this.inventory.total;
@@ -480,7 +453,7 @@ export class Game {
     this.aimTargets.set(c.object, {
       id: `cracker-${kind}`,
       root: c.object,
-      label: () => (this.agarbattiLit && c.timer.phase === 'idle' ? 'Click — light the fuse' : null),
+      label: () => (this.agarbatti.lit && c.timer.phase === 'idle' ? 'Click — light the fuse' : null),
       act: () => {},
     });
   }
@@ -517,12 +490,11 @@ export class Game {
 
   /** Lights the sparkler in the left hand, or the cracker on the ground whose fuse the agarbatti tip touches. */
   private onClick(t: number): void {
-    if (this.leftHeld && this.agarbattiLit && this.leftHeld.timer.phase === 'idle') {
+    if (this.leftHeld && this.leftHeld.timer.phase === 'idle') {
       this.hands.poke();
       this.leftHeld.light();
       return;
     }
-    if (!this.agarbattiLit) return;
     const target = this.crackers.nearestUnlit(this.agarbatti.tipWorld, TIP_REACH);
     if (!target) return;
     this.hands.poke();
@@ -621,14 +593,10 @@ export class Game {
   }
 
   /**
-   * Debug hook: gives the player the agarbatti already lit in the right hand, selects the first hotbar slot and
-   * places it, so a screenshot shows a phuljhadi held in the left hand without playing through the pickups.
+   * Debug hook: selects the first hotbar slot and places it, so a screenshot shows a phuljhadi held in the left hand
+   * beside the lit agarbatti the player already holds in the right.
    */
   private debugHeldShot(): void {
-    this.hasAgarbatti = true;
-    this.hands.holdRight(this.agarbatti.object);
-    this.agarbattiLit = true;
-    this.agarbatti.light();
     this.inventory.select(0);
     this.onPlace();
   }

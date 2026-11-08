@@ -14,7 +14,7 @@ export interface DiwaliDebug {
   teleport(x: number, z: number, yaw: number, pitch?: number): void;
   /** A copy of the gameplay state the prompts use, including the finale burst count. */
   state(): PlayerState;
-  /** Holds the agarbatti already lit in the right hand and places a phuljhadi in the left, for a held-state capture. */
+  /** Places a phuljhadi in the left hand (the lit agarbatti is already in the right), for a held-state capture. */
   heldShot(): void;
   /** Fires a salvo of six neighbour shells at once, a mix of peony, willow and ring, aimed around the yaw (radians). */
   skyShow(yaw: number): void;

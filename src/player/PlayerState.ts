@@ -3,10 +3,8 @@
 
 /** Facts about the player's progress that decide which hint to show. */
 export interface PlayerState {
-  /** True once the agarbatti has been picked up from the tulsi chaura. */
-  hasAgarbatti: boolean;
-  /** True once the agarbatti tip has been lit at a diya. */
-  agarbattiLit: boolean;
+  /** True once the player has taken a pack from the stall, which retires the "go to the stall" hint. */
+  visitedStall: boolean;
   /** English name of the cracker selected on the hotbar. */
   selectedName: string;
   /** Crackers of the selected kind still carried. */
@@ -24,13 +22,12 @@ export interface PlayerState {
  * is always the one shown.
  */
 export function nextHint(s: PlayerState): string {
-  if (!s.hasAgarbatti) return 'Take the agarbatti from the tulsi chaura';
-  if (!s.agarbattiLit) return 'Light the agarbatti at the diya first';
   if (s.placedUnlit > 0) return 'Touch the agarbatti to the fuse — click';
   if (s.selectedCount === 0) {
     return s.totalCount > 0
       ? `Out of ${s.selectedName} — restock at the stall`
       : 'Out of crackers — restock at the stall';
   }
-  return '1–0 or scroll to choose · F to place it';
+  if (!s.visitedStall) return 'Pick crackers at the stall · E';
+  return 'F — place · aim the agarbatti at the fuse';
 }
