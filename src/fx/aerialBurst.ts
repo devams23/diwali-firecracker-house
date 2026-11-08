@@ -44,15 +44,27 @@ const CRACKLE_DELAY = 0.6;
 /** Sparks in the white glitter that follows the crackle's second pop. */
 const GLITTER_COUNT = 80;
 /** Sparks in the flat ring burst. */
-const RING_SPARKS = 220;
+const RING_SPARKS = 130;
 /** Largest tilt of the ring's plane away from facing the viewer, in radians. */
 const RING_TILT = 0.45;
-/** Peak intensity of the flash at the burst point. */
-const FLASH_INTENSITY = 5;
-/** Reach of the flash at the burst point, in metres. */
-const FLASH_DISTANCE = 40;
+/**
+ * Light the burst throws on the courtyard. The burst is 35 m or more away, so with inverse-square falloff the
+ * intensity has to be in the hundreds for the walls and ground to visibly take the colour.
+ */
+const FLASH_INTENSITY = 700;
+/** Reach of the flash at the burst point, in metres; it must exceed the distance to the courtyard. */
+const FLASH_DISTANCE = 130;
 /** Seconds the flash at the burst point lasts. */
-const FLASH_SECONDS = 0.4;
+const FLASH_SECONDS = 0.55;
+/** Distance at which the sizes in the style table are meant to be seen; nearer or farther bursts are scaled from it. */
+const REF_DISTANCE = 35;
+/** Sizes of the white and coloured flash sprites at the reference distance, in metres, and how long they last. */
+const FLASH_CORE_SIZE = 6;
+const FLASH_HALO_SIZE = 14;
+const FLASH_SPRITE_SECONDS = 0.15;
+/** Radius of the shell on which the afterglow's glitter pops twinkle, in metres, and the sparks in each cluster. */
+const GLITTER_RADIUS = 9;
+const GLITTER_GROUP = 12;
 /** Earliest and latest the golden crackle phase starts after a burst, in seconds. */
 const AFTERGLOW_MIN = 0.4;
 const AFTERGLOW_MAX = 1.2;
@@ -63,8 +75,13 @@ const STAR_DRAG = 1.2;
 const SPLIT_SECONDS = 0.7;
 const TAU = Math.PI * 2;
 const WHITE_GLITTER = [0xffffff, 0xfff8e8];
-const GOLD_GLITTER = [0xffd36a, 0xfff2c0];
+const GOLD_GLITTER = [0xffd36a, 0xfff2c0, 0xffffff];
 const PALM_GOLD = [0xffc24a, 0xffb030, 0xffd870];
+/** Warm gold the willow's drooping stars always take, whatever the palette. */
+const WILLOW_GOLD = [0xffc850, 0xffb030, 0xffe28a];
+const WHITE_HOT = [0xfff6d8];
+/** Tail size as a fraction of each star, for stars that leave a trail. */
+const TRAIL = 0.55;
 const SMOKE_GREY = 0x9a948c;
 
 /** Per-style tuning for the spherical bursts; the ring, crossette and palm are handled separately. */
@@ -88,13 +105,13 @@ interface StyleSpec {
 /** Sphere burst tuning for each sphere style. */
 const STYLES: Record<'peony' | 'willow' | 'crackle' | 'chrysanthemum', StyleSpec> = {
   // Full round peony: dense, quick to fall.
-  peony: { count: 350, speed: [14, 18], life: [1.4, 2.0], gravity: 4, drag: 1.2, size: [0.03, 0.05], crackle: false },
-  // Willow: fewer, slower sparks that hang and droop for a long time.
-  willow: { count: 220, speed: [9, 13], life: [2.8, 3.6], gravity: 2.5, drag: 2.2, size: [0.025, 0.04], crackle: false },
-  // Crackle: a bright round burst whose sparks flicker; the second pop comes later (see aerialBurst).
-  crackle: { count: 250, speed: [10, 14], life: [1.0, 1.6], gravity: 4, drag: 1.2, size: [0.03, 0.045], crackle: true },
-  // Chrysanthemum: a dense flickering sphere whose glittering tails are added by timed stamps (see emitTails).
-  chrysanthemum: { count: 320, speed: [12, 16], life: [1.8, 2.4], gravity: 4, drag: 1.5, size: [0.02, 0.03], crackle: true },
+  peony: { count: 200, speed: [14, 18], life: [1.8, 2.5], gravity: 4.5, drag: 1.3, size: [0.55, 0.85], crackle: false },
+  // Willow: slower golden stars that hang and droop for a long time.
+  willow: { count: 170, speed: [9, 13], life: [3.0, 3.8], gravity: 2.5, drag: 2.2, size: [0.5, 0.75], crackle: false },
+  // Crackle: a bright round burst whose stars flicker; the second pop comes later (see aerialBurst).
+  crackle: { count: 190, speed: [10, 14], life: [1.3, 1.9], gravity: 4, drag: 1.2, size: [0.5, 0.8], crackle: true },
+  // Chrysanthemum: a dense flickering sphere, every star dragging a glittering tail.
+  chrysanthemum: { count: 230, speed: [12, 16], life: [2.0, 2.6], gravity: 4, drag: 1.5, size: [0.45, 0.7], crackle: true },
 };
 
 /** Drag-only distance a spark launched at `speed` covers in `t` seconds, used to place the timed stamps. */
@@ -124,8 +141,10 @@ const ringV = new THREE.Vector3();
 const helperAxis = new THREE.Vector3();
 /** Scratch vector for the direction of one ring spark. */
 const ringDir = new THREE.Vector3();
-/** Scratch vector for the point of one tail spark on the chrysanthemum shell. */
-const tailPos = new THREE.Vector3();
+/** Scratch vector for the point of one glitter pop in the afterglow. */
+const popPos = new THREE.Vector3();
+/** Size multiplier of the burst being emitted now: its distance from the camera over REF_DISTANCE, clamped. */
+let sizeScale = 1;
 /** Reused option object for the ring; each spark only changes direction and speed. */
 const ringOpts: EmitOptions = {
   position: new THREE.Vector3(),
@@ -135,9 +154,10 @@ const ringOpts: EmitOptions = {
   count: 1,
   colors: [],
   life: [1.6, 2.2],
-  size: [0.025, 0.035],
+  size: [0.5, 0.7],
   gravity: 3,
   drag: 1.5,
+  trail: TRAIL,
 };
 /** Reused option object for the spherical bursts. */
 const sphereOpts: EmitOptions = {
@@ -157,22 +177,9 @@ const glitterOpts: EmitOptions = {
   count: GLITTER_COUNT,
   colors: WHITE_GLITTER,
   life: [0.4, 0.8],
-  size: [0.015, 0.025],
+  size: [0.12, 0.22],
   crackle: true,
 };
-/** Reused option object for the glittering tail stamps of the chrysanthemum. */
-const tailOpts: EmitOptions = {
-  position: new THREE.Vector3(),
-  speed: [2, 4],
-  spread: Math.PI,
-  count: 1,
-  colors: [],
-  life: [0.25, 0.4],
-  size: [0.012, 0.018],
-  gravity: 4,
-  drag: 2,
-};
-
 /**
  * Pure queue step: counts every entry down by dt, calls `fire` for each one that reaches zero, and keeps the rest
  * in their original order. `fire` must not add to the queue. Returns how many entries fired.
@@ -222,7 +229,35 @@ function emitGlitter(fx: FxContext, at: THREE.Vector3, count: number, colors: nu
   glitterOpts.position = at;
   glitterOpts.count = count;
   glitterOpts.colors = colors;
+  glitterOpts.size = [0.12 * sizeScale, 0.22 * sizeScale];
   fx.sparks.emit(glitterOpts);
+}
+
+/**
+ * One twinkling pop of the afterglow: `groups` small clusters of white-gold glitter, each at a random point on a
+ * drooped shell around the burst, so the whole dandelion crackles at once instead of only its centre.
+ */
+function emitGlitterShell(fx: FxContext, at: THREE.Vector3, groups: number, colors: number[]): void {
+  glitterOpts.speed = [0.5, 2];
+  for (let g = 0; g < groups; g++) {
+    const cosT = 2 * Math.random() - 1;
+    const sinT = Math.sqrt(1 - cosT * cosT);
+    const phi = Math.random() * TAU;
+    const r = GLITTER_RADIUS * (0.55 + Math.random() * 0.45);
+    // The shell sags a couple of metres, since the stars it came from have drooped under gravity.
+    popPos.set(sinT * Math.cos(phi) * r, cosT * r - 2, sinT * Math.sin(phi) * r).add(at);
+    emitGlitter(fx, popPos, GLITTER_GROUP, colors);
+  }
+  glitterOpts.speed = [3, 5];
+}
+
+/**
+ * The bright flash at the instant of the burst: a small white-hot sprite over a large coloured halo, each a single
+ * oversized spark that lives 0.15 s, so the sky blooms and the stars appear out of it.
+ */
+function emitBurstFlash(fx: FxContext, at: THREE.Vector3, palette: number[]): void {
+  fx.sparks.emit({ position: at, speed: 0, spread: 0, count: 1, colors: WHITE_HOT, life: [FLASH_SPRITE_SECONDS, FLASH_SPRITE_SECONDS], size: FLASH_CORE_SIZE * sizeScale, gravity: 0 });
+  fx.sparks.emit({ position: at, speed: 0, spread: 0, count: 1, colors: palette, life: [FLASH_SPRITE_SECONDS * 1.3, FLASH_SPRITE_SECONDS * 1.3], size: FLASH_HALO_SIZE * sizeScale, gravity: 0 });
 }
 
 /**
@@ -240,6 +275,8 @@ export function aerialBurst(
   fx.flashes.flash(position, palette[0], FLASH_INTENSITY, FLASH_DISTANCE, FLASH_SECONDS);
   fx.camera.getWorldPosition(eye);
   const at = position.clone();
+  sizeScale = Math.min(2.4, Math.max(0.8, eye.distanceTo(at) / REF_DISTANCE));
+  emitBurstFlash(fx, at, palette);
   const bangAt = at;
   later(soundDelay(eye.distanceTo(at)), () => fx.audio.play('pop', bangAt));
 
@@ -261,7 +298,7 @@ export function aerialBurst(
   if (style === 'crackle') {
     later(CRACKLE_DELAY, () => {
       fx.audio.play('popSmall', bangAt);
-      emitGlitter(fx, bangAt, GLITTER_COUNT, WHITE_GLITTER);
+      emitGlitterShell(fx, bangAt, 10, WHITE_GLITTER);
     });
   }
   afterglow(fx, at, palette);
@@ -274,34 +311,15 @@ function emitSphere(fx: FxContext, at: THREE.Vector3, style: 'peony' | 'willow' 
   sphereOpts.count = tune.count ?? s.count;
   sphereOpts.speed = s.speed;
   sphereOpts.life = s.life;
-  sphereOpts.size = tune.size ?? s.size;
+  const sz = tune.size ?? s.size;
+  sphereOpts.size = [sz[0] * sizeScale, sz[1] * sizeScale];
+  sphereOpts.trail = TRAIL;
   sphereOpts.gravity = s.gravity;
   sphereOpts.drag = s.drag;
-  sphereOpts.colors = palette;
+  sphereOpts.colors = style === 'willow' ? WILLOW_GOLD : palette;
   sphereOpts.crackle = s.crackle;
   fx.sparks.emit(sphereOpts);
 
-  if (style === 'chrysanthemum') {
-    // Glittering tails: three timed stamps of short sparks along the expanding shell, so the sphere reads as trails.
-    const speed = (s.speed[0] + s.speed[1]) / 2;
-    for (const t of [0.15, 0.3, 0.45]) {
-      const r = dragDistance(speed, s.drag, t);
-      later(t, () => emitTails(fx, at, palette, r));
-    }
-  }
-}
-
-/** One tail stamp of the chrysanthemum: short glittering sparks scattered on the shell at radius `r`. */
-function emitTails(fx: FxContext, at: THREE.Vector3, palette: number[], r: number): void {
-  tailOpts.colors = palette;
-  for (let k = 0; k < 90; k++) {
-    // Random point on a sphere of radius r around the burst; each tail spark is its own emit so each sits at its point.
-    const cosT = 2 * Math.random() - 1;
-    const sinT = Math.sqrt(1 - cosT * cosT);
-    const phi = Math.random() * TAU;
-    tailOpts.position = tailPos.set(sinT * Math.cos(phi) * r, cosT * r, sinT * Math.sin(phi) * r).add(at);
-    fx.sparks.emit(tailOpts);
-  }
 }
 
 /**
@@ -330,6 +348,7 @@ function emitRing(fx: FxContext, position: THREE.Vector3, palette: number[], cou
 
   ringOpts.position = position;
   ringOpts.colors = palette;
+  ringOpts.size = [0.5 * sizeScale, 0.7 * sizeScale];
   for (let k = 0; k < count; k++) {
     // Each spark gets a slightly jittered angle so the ring is not a set of perfect spokes.
     const a = ((k + Math.random() * 0.5) / count) * TAU;
@@ -344,7 +363,7 @@ function emitRing(fx: FxContext, position: THREE.Vector3, palette: number[], cou
  * moment later at the point it has reached. The split is queued at the burst, using the drag-only distance.
  */
 function emitCrossette(fx: FxContext, at: THREE.Vector3, palette: number[]): void {
-  const stars = 6 + Math.floor(Math.random() * 3);
+  const stars = 12 + Math.floor(Math.random() * 5);
   const reach = dragDistance(STAR_SPEED, STAR_DRAG, SPLIT_SECONDS);
   for (let s = 0; s < stars; s++) {
     const cosT = 2 * Math.random() - 1;
@@ -356,26 +375,28 @@ function emitCrossette(fx: FxContext, at: THREE.Vector3, palette: number[]): voi
       direction: dir,
       speed: STAR_SPEED,
       spread: 0.05,
-      count: 22,
+      count: 7,
       colors: palette,
       life: [1.6, 1.9],
-      size: [0.025, 0.035],
+      size: [0.5 * sizeScale, 0.7 * sizeScale],
       gravity: 0,
       drag: STAR_DRAG,
+      trail: TRAIL,
     });
     const splitAt = new THREE.Vector3().copy(dir).multiplyScalar(reach).add(at);
     later(SPLIT_SECONDS + Math.random() * 0.1, () => {
       fx.sparks.emit({
         position: splitAt,
         direction: dir,
-        speed: [5, 7],
-        spread: 0.5,
-        count: 4,
+        speed: [6, 10],
+        spread: 1.0,
+        count: 9,
         colors: palette,
-        life: [0.9, 1.2],
-        size: [0.03, 0.04],
+        life: [1.1, 1.5],
+        size: [0.45 * sizeScale, 0.6 * sizeScale],
         gravity: 3,
         drag: 1.2,
+        trail: TRAIL,
       });
     });
   }
@@ -396,13 +417,14 @@ function emitPalm(fx: FxContext, at: THREE.Vector3, palette: number[]): void {
       direction: dir,
       speed: [13, 15],
       spread: 0.05,
-      count: 45,
-      colors: Math.random() < 0.5 ? PALM_GOLD : palette,
-      life: [2.4, 3.0],
-      size: [0.04, 0.06],
+      count: 24,
+      colors: Math.random() < 0.6 ? PALM_GOLD : palette,
+      life: [2.6, 3.4],
+      size: [0.55 * sizeScale, 0.8 * sizeScale],
       gravity: 5,
       drag: 0.7,
       crackle: true,
+      trail: TRAIL,
     });
     fx.sparks.emit({
       position: at,
@@ -412,7 +434,7 @@ function emitPalm(fx: FxContext, at: THREE.Vector3, palette: number[]): void {
       count: 2,
       colors: [0xfff6d8],
       life: [0.3, 0.4],
-      size: [0.1, 0.12],
+      size: [1.1 * sizeScale, 1.4 * sizeScale],
       gravity: 0,
       drag: 0.4,
     });
@@ -427,10 +449,11 @@ function afterglow(fx: FxContext, at: THREE.Vector3, palette: number[]): void {
   const t0 = AFTERGLOW_MIN + Math.random() * (AFTERGLOW_MAX - AFTERGLOW_MIN);
   later(t0, () => {
     fx.audio.play('crack', at, { volume: 0.8 });
-    emitGlitter(fx, at, 70, GOLD_GLITTER);
+    emitGlitterShell(fx, at, 14, GOLD_GLITTER);
   });
-  later(t0 + 0.15, () => emitGlitter(fx, at, 40, GOLD_GLITTER));
-  later(t0 + 0.35, () => emitGlitter(fx, at, 30, GOLD_GLITTER));
-  later(t0 + 0.05, () => fx.flashes.flash(at, palette[0], 2.5, 30, 0.45));
+  later(t0 + 0.15, () => emitGlitterShell(fx, at, 10, GOLD_GLITTER));
+  later(t0 + 0.35, () => emitGlitterShell(fx, at, 8, GOLD_GLITTER));
+  later(t0 + 0.55, () => emitGlitterShell(fx, at, 6, WHITE_GLITTER));
+  later(t0 + 0.05, () => fx.flashes.flash(at, palette[0], 250, 100, 0.45));
   later(t0 + 0.6, () => fx.smoke.puff(at, { count: 4, size: 1.4, life: 5, rise: 0.2, color: SMOKE_GREY }));
 }

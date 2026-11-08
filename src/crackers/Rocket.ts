@@ -31,26 +31,29 @@ const WOBBLE_RATE = 9;
 /** Seconds of flight over which the wobble grows from nothing. */
 const WOBBLE_RAMP = 0.4;
 /** Seconds between smoke puffs along the trail. */
-const SMOKE_INTERVAL = 0.08;
+const SMOKE_INTERVAL = 0.1;
 /** Trail sparks per second: dense enough to read as a gold stream. */
-const TRAIL_RATE = 500;
+const TRAIL_RATE = 420;
 /** Sparks per frame in the hot glowing head. */
 const HEAD_PER_FRAME = 2;
+/** Bright sparks laid along each frame's flight segment, so the ascent reads as one continuous gold streak. */
+const STREAK_PER_FRAME = 7;
+/** Distance from the camera, in metres, at which the streak and head sparks reach their full size. */
+const STREAK_FULL_DISTANCE = 30;
 /** Sparks per second in the sputter at the mouth, before the rocket leaves. */
 const SPUTTER_RATE = 220;
 /** Trail and head colours: gold and hot white-gold. */
 const TRAIL_COLORS = [0xffb83a, 0xffd36a, 0xfff0b8];
 const HEAD_COLORS = [0xfff4d0, 0xffe08a];
+/** Colours of the continuous streak: saturated gold up to hot yellow. */
+const STREAK_COLORS = [0xffb02e, 0xffc94a, 0xffe27a];
 /** Launch flash: gold, with a short reach and duration. */
 const LAUNCH_FLASH_COLOR = 0xffc24a;
-const LAUNCH_FLASH_INTENSITY = 3;
-const LAUNCH_FLASH_DISTANCE = 25;
+const LAUNCH_FLASH_INTENSITY = 14;
+const LAUNCH_FLASH_DISTANCE = 30;
 const LAUNCH_FLASH_SECONDS = 0.3;
 /** Burst power announced on the game event bus when the rocket bursts. */
 const BURST_POWER = 0.7;
-/** Peony spark count range for one rocket, and the spark size range that matches the anar's sparks. */
-const PEONY_COUNT: [number, number] = [350, 500];
-const BURST_SIZE: [number, number] = [0.1, 0.14];
 const TAU = Math.PI * 2;
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -87,6 +90,10 @@ export class Rocket extends Cracker {
   private readonly trailDir = new THREE.Vector3();
   /** Where the body is on its straight flight path, before the wobble is added. */
   private readonly basePos = new THREE.Vector3();
+  /** Scratch position for each streak spark along the frame's path, reused every frame. */
+  private readonly streakPos = new THREE.Vector3();
+  /** Scratch vector for the camera position, used to scale the streak by distance. */
+  private readonly eyePos = new THREE.Vector3();
   /** Scratch direction for the sputter sparks, reused every frame. */
   private readonly sputterDir = new THREE.Vector3();
   /** Current speed in m/s, ramped up to the top speed. */
@@ -231,12 +238,38 @@ export class Rocket extends Cracker {
    * body's nose. The stream sparks drift and crackle; the head is a few extra-large sparks each frame.
    */
   private trail(dt: number, at: THREE.Vector3): void {
+    // Smoke is kept small and thin: a faint warm wisp behind the streak, not grey blobs.
     this.smokeAcc += dt;
     if (this.smokeAcc >= SMOKE_INTERVAL) {
       this.smokeAcc -= SMOKE_INTERVAL;
-      this.fx.smoke.puff(at, { count: 1, size: 0.25, life: 1.5, rise: 0.3, color: 0xb8b2a8 });
+      this.fx.smoke.puff(at, { count: 1, size: 0.12, life: 0.9, rise: 0.2, color: 0xa89c88 });
     }
 
+    // The streak: bright gold sparks placed at even steps back along this frame's path (body speed times dt), so
+    // there are no gaps between frames however fast the rocket flies.
+    const stride = this.speed * dt;
+    // Near the ground the streak is a few metres from the player, so its sparks shrink with closeness to the camera.
+    this.fx.camera.getWorldPosition(this.eyePos);
+    const near = Math.min(1, Math.max(0.12, this.eyePos.distanceTo(at) / STREAK_FULL_DISTANCE));
+    for (let k = 0; k < STREAK_PER_FRAME; k++) {
+      const back = (k / STREAK_PER_FRAME) * stride;
+      this.streakPos.copy(at).addScaledVector(this.flightDir, -back);
+      this.fx.sparks.emit({
+        position: this.streakPos,
+        direction: this.trailDir,
+        speed: [0.2, 1],
+        spread: 0.5,
+        count: 1,
+        colors: STREAK_COLORS,
+        life: [0.45, 0.8],
+        size: [0.22 * near, 0.32 * near],
+        gravity: 1.5,
+        drag: 2,
+        crackle: true,
+      });
+    }
+
+    // A thinner scatter of sparks thrown backwards, which fall away from the streak as glittering embers.
     this.sparkAcc += TRAIL_RATE * dt;
     const n = Math.floor(this.sparkAcc);
     if (n > 0) {
@@ -244,41 +277,40 @@ export class Rocket extends Cracker {
       this.fx.sparks.emit({
         position: at,
         direction: this.trailDir,
-        speed: [1, 2.5],
-        spread: 0.3,
+        speed: [1.5, 4],
+        spread: 0.35,
         count: n,
         colors: TRAIL_COLORS,
-        life: [0.3, 0.6],
-        size: [0.018, 0.028],
-        gravity: 2,
+        life: [0.4, 0.9],
+        size: [0.1 * near, 0.18 * near],
+        gravity: 3,
         drag: 1.5,
         crackle: true,
       });
     }
 
-    // The hot head: a few very large, very short-lived white-gold sparks where the body is.
+    // The hot head: a few very large, white-gold sparks where the body is.
     this.fx.sparks.emit({
       position: at,
       speed: [0, 0.2],
       spread: Math.PI,
       count: HEAD_PER_FRAME,
       colors: HEAD_COLORS,
-      life: [0.05, 0.09],
-      size: [0.11, 0.14],
+      life: [0.06, 0.1],
+      size: [0.55 * near, 0.8 * near],
     });
   }
 
   /**
    * Bursts the rocket where its body is now: a random shape and a festive colour pair, the burst event at that
-   * point in the sky, the whoosh stopped, and the body freed. Peonies pick their spark count from 350 to 500.
+   * point in the sky, the whoosh stopped, and the body freed. 
    */
   private burstAndRelease(): void {
     const body = this.body;
     if (!body) return;
     const style = pickRocketStyle(Math.random());
     const palette = pickFestivePalette(Math.random());
-    const count = style === 'peony' ? PEONY_COUNT[0] + Math.floor(Math.random() * (PEONY_COUNT[1] - PEONY_COUNT[0] + 1)) : undefined;
-    aerialBurst(this.fx, body.position, style, palette, { count, size: BURST_SIZE });
+    aerialBurst(this.fx, body.position, style, palette);
     // The event is at the burst point in the sky, not the bottle on the ground, so lighting reacts where the light is.
     events.emit('burst', { x: body.position.x, y: body.position.y, z: body.position.z, power: BURST_POWER });
     this.whoosh?.stop();

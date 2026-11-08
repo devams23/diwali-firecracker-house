@@ -46,7 +46,7 @@ const trailOpts: EmitOptions = {
   count: 1,
   colors: [0xffd27a, 0xfff0c0],
   life: [0.2, 0.45],
-  size: [0.008, 0.014],
+  size: [0.2, 0.32],
   gravity: 2,
 };
 
