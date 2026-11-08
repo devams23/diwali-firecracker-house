@@ -46,7 +46,7 @@ import { PhotoMode } from './ui/PhotoMode';
 import { debugRequested, installDebugHook } from './debugHook';
 
 /** Niche indices (into the aangan diya spots) that hold a real lit lamp instead of a decorative one. */
-const LIT_NICHES = [2, 5, 9];
+const LIT_NICHES = [2, 9];
 /**
  * Game seconds the debug sky show is fast-forwarded: past the longest rocket climb (1.3 s) and into the first second of
  * the bursts, so the sparks have spread into rings and fans rather than a single flash.
@@ -197,7 +197,7 @@ export class Game {
     this.engine.add(this.sky);
     this.engine.add(new Festoons(scene));
 
-    // Six real lit lamps: the tulsi diya, two at the door and three in the aangan niches. The tulsi diya comes first
+    // Five real lit lamps: the tulsi diya, two at the door and two in the aangan niches. The tulsi diya comes first
     // and is kept by name so the crosshair can aim at it.
     const tulsi = new Diya(this.props.tulsiDiyaPos, { light: true });
     const litPositions: THREE.Vector3[] = [
@@ -317,7 +317,7 @@ export class Game {
    * stall boxes are the only way to restock, so their label names the pack that E will add.
    */
   private buildInteractables(tulsiObject: THREE.Object3D): void {
-    for (const box of this.props.takhtBoxes) {
+    for (const box of this.props.stallBoxes) {
       const info = CRACKERS[box.kind];
       const label = `E — Take ${info.pack} ${info.label}`;
       this.addInteractable({

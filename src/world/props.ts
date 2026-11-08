@@ -1,18 +1,15 @@
-// Village props: the tulsi chaura with its diya ledge and agarbatti stand, two charpais, the cracker boxes on the takht, a stack of matkas, a brass lota, a hand pump, a neem tree and
+// Village props: the tulsi chaura with its diya ledge and agarbatti stand, two charpais, the cracker stall (built in Stall.ts), a stack of matkas, a brass lota, a hand pump, a neem tree and
 // the akash kandil. Floor props register their footprints as colliders; items resting on a prop (the
 // diya, incense, cracker boxes) rely on the collider of the thing they sit on.
 import * as THREE from 'three';
 import { PALETTE } from '../core/palette';
 import type { CollisionWorld } from '../core/Collision';
-import { CRACKER_ORDER, CRACKERS, type CrackerKind } from '../crackers/catalog';
 import { CLAY } from '../items/Diya';
 import { DIYA_SPACING, FACE_CLEARANCE, GATE_HALF, INNER_X, SOUTH_INNER_Z, WALL_H, WALL_T, jitteredBox, plasterMaterial, woodMaterial } from './Aangan';
-import { TAKHT_H, type HouseAnchors } from './House';
+import type { HouseAnchors } from './House';
+import { buildStall, type StallBox } from './Stall';
 import { rng, tile, type Textures } from './textures';
 
-/** Cardboard of the cracker boxes, muted to match the lime and earth tones. */
-const CARDBOARD = 0xb08a58;
-const CARDBOARD_INSIDE = 0x3a2a18;
 const TULSI_GREEN = 0x4f8a3c;
 const IRON = 0x3a3d44;
 const CHARPAI_L = 1.9;
@@ -138,47 +135,6 @@ function starShape(points: number, outer: number, inner: number): THREE.Shape {
   return s;
 }
 
-/** Draws one cracker box label: tinted band, cream panel, English name in bold and the Devanagari below. */
-function drawBoxLabel(canvas: HTMLCanvasElement, kind: CrackerKind): void {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-  const info = CRACKERS[kind];
-  const w = canvas.width;
-  const h = canvas.height;
-  ctx.fillStyle = css(info.tint);
-  ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = '#efe3c6';
-  ctx.fillRect(12, 16, w - 24, h - 32);
-  ctx.fillStyle = '#3a1a10';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = 'bold 40px Inter, sans-serif';
-  ctx.fillText(info.label.toUpperCase(), w / 2, h * 0.4);
-  ctx.font = '44px "Tiro Devanagari Hindi", serif';
-  ctx.fillText(info.hindi, w / 2, h * 0.7);
-}
-
-/** Label canvas texture for one cracker kind, redrawn once the web fonts are ready. */
-function boxLabelTexture(kind: CrackerKind): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 200;
-  drawBoxLabel(canvas, kind);
-  const map = new THREE.CanvasTexture(canvas);
-  map.colorSpace = THREE.SRGBColorSpace;
-  const info = CRACKERS[kind];
-  // Fonts load from Google Fonts; redraw after they arrive so the first paint is not a fallback.
-  document.fonts
-    ?.load(`bold 40px Inter`, info.label)
-    .then(() => document.fonts.load(`44px "Tiro Devanagari Hindi"`, info.hindi))
-    .then(() => {
-      drawBoxLabel(canvas, kind);
-      map.needsUpdate = true;
-    })
-    .catch(() => undefined);
-  return map;
-}
-
 /** Adds one limb (a thin cylinder) from `from` to `to`, used for the neem's branches. */
 function limb(
   group: THREE.Group,
@@ -196,7 +152,7 @@ function limb(
 }
 
 /**
- * Props layout result: the diya and agarbatti spots on the chaura and the takht's cracker boxes in CRACKER_ORDER.
+ * Props layout result: the diya and agarbatti spots on the chaura and the stall's cracker boxes in CRACKER_ORDER.
  */
 export interface PropsResult {
   /** Flame base spot for the main diya on the chaura ledge. */
@@ -205,8 +161,8 @@ export interface PropsResult {
   agarbattiStandPos: THREE.Vector3;
   /** The stand's group, which the crosshair aims at and highlights. */
   agarbattiStand: THREE.Group;
-  /** Cracker boxes in a row on the takht, one per kind. */
-  takhtBoxes: { kind: CrackerKind; position: THREE.Vector3; object: THREE.Mesh }[];
+  /** The stall's cracker boxes, one per kind, each an E interactable. */
+  stallBoxes: StallBox[];
 }
 
 /** Builds every village prop, registers the floor colliders and returns the spots other systems use. */
@@ -225,14 +181,14 @@ export function buildProps(
   buildCharpai(scene, world, tex, rope, 4.5, 3.5);
   buildCharpai(scene, world, tex, rope, -6, 2);
 
-  const takhtBoxes = buildTakhtBoxes(scene, house.takhtPosition);
+  const stallBoxes = buildStall(scene, world, tex);
   buildMatkas(scene, world);
   buildLota(scene, world);
   buildHandPump(scene, world, tex);
   buildNeem(scene, world, tex);
   buildAkashKandil(scene, house.verandahLanternAnchor);
 
-  return { tulsiDiyaPos, agarbattiStandPos, agarbattiStand, takhtBoxes };
+  return { tulsiDiyaPos, agarbattiStandPos, agarbattiStand, stallBoxes };
 }
 
 /**
@@ -412,31 +368,6 @@ function buildCharpai(
     minZ: z - CHARPAI_W / 2,
     maxZ: z + CHARPAI_W / 2,
   });
-}
-
-/** Cracker boxes on the takht: open cardboard boxes, one per kind, with a printed label on the south end. */
-function buildTakhtBoxes(scene: THREE.Scene, takht: THREE.Vector3): PropsResult['takhtBoxes'] {
-  const r = rng(616);
-  const out: PropsResult['takhtBoxes'] = [];
-  CRACKER_ORDER.forEach((kind, i) => {
-    const cardboard = new THREE.MeshStandardMaterial({ color: CARDBOARD, roughness: 0.95, metalness: 0 });
-    const inside = new THREE.MeshStandardMaterial({ color: CARDBOARD_INSIDE, roughness: 1, metalness: 0 });
-    const label = new THREE.MeshStandardMaterial({
-      map: boxLabelTexture(kind),
-      roughness: 0.9,
-      metalness: 0,
-    });
-    // Box faces in BoxGeometry order: +x, -x, +y (open top), -y, +z (label end), -z.
-    const mats = [cardboard, cardboard, inside, cardboard, label, cardboard];
-    const box = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.11, 0.46), mats);
-    const x = takht.x + (i - (CRACKER_ORDER.length - 1) / 2) * 0.15;
-    box.position.set(x, takht.y + TAKHT_H + 0.055, takht.z);
-    // Slight hand-placed turn so the row does not look machined.
-    box.rotation.y = (r() - 0.5) * 0.1;
-    scene.add(box);
-    out.push({ kind, position: box.position.clone(), object: box });
-  });
-  return out;
 }
 
 /** Stack of three clay matkas by the north-west corner: two side by side and one nested on top. */

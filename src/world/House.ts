@@ -13,8 +13,6 @@ export interface HouseAnchors {
   doorPosition: THREE.Vector3;
   /** Point under the roof where the akash kandil hangs. */
   verandahLanternAnchor: THREE.Vector3;
-  /** Base centre of the wooden takht on the verandah. */
-  takhtPosition: THREE.Vector3;
   /** Floor spots in front of each verandah post, for diyas. */
   diyaSpots: THREE.Vector3[];
 }
@@ -24,8 +22,6 @@ const BACK_Z = -11;
 const WALL_H = 3.2;
 const HALF_W = 9;
 const VERANDAH_H = 0.3;
-/** Height of the wooden takht plinth above the verandah floor, in metres. */
-export const TAKHT_H = 0.45;
 const VERANDAH_FRONT_Z = -7;
 const POST_Z = -7.15;
 export const POST_X = [-5.5, -3, -1.4, 1.4, 3, 5.5];
@@ -72,12 +68,10 @@ export function buildHouse(scene: THREE.Scene, world: CollisionWorld, tex: Textu
   for (const x of WINDOW_X) buildWindow(scene, tex, x);
   buildToran(scene);
   buildDecals(scene, tex);
-  buildTakht(scene, world, tex);
 
   return {
     doorPosition: new THREE.Vector3(0, VERANDAH_H, FRONT_Z),
     verandahLanternAnchor: new THREE.Vector3(0, roofY(-7.6) - 0.15, -7.6),
-    takhtPosition: new THREE.Vector3(-3.5, VERANDAH_H, -7.8),
     // Diyas sit on the courtyard floor just in front of each post, clear of the verandah.
     diyaSpots: POST_X.map((x) => new THREE.Vector3(x, 0.06, VERANDAH_FRONT_Z - 0.4)),
   };
@@ -404,10 +398,3 @@ function buildDecals(scene: THREE.Scene, tex: Textures): void {
   scene.add(rangoli);
 }
 
-/** Wooden takht on the verandah, the plinth that will hold the cracker boxes. */
-function buildTakht(scene: THREE.Scene, world: CollisionWorld, tex: Textures): void {
-  const takht = new THREE.Mesh(new THREE.BoxGeometry(1.6, TAKHT_H, 0.7), woodMaterial(tex, 1, 1));
-  takht.position.set(-3.5, VERANDAH_H + TAKHT_H / 2, -7.8);
-  scene.add(takht);
-  world.addBox({ minX: -4.3, maxX: -2.7, minZ: -8.15, maxZ: -7.45 });
-}
