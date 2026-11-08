@@ -32,9 +32,9 @@ describe('pickFestivePalette', () => {
 });
 
 describe('pickApex', () => {
-  it('keeps the apex within 30 to 38 m', () => {
-    expect(pickApex(0)).toBe(30);
-    expect(pickApex(1)).toBe(38);
-    expect(pickApex(0.5)).toBeCloseTo(34, 10);
+  it('keeps the apex within 55 to 70 m', () => {
+    expect(pickApex(0)).toBe(55);
+    expect(pickApex(1)).toBe(70);
+    expect(pickApex(0.5)).toBeCloseTo(62.5, 10);
   });
 });

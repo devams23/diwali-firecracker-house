@@ -16,6 +16,13 @@ export interface BurstTune {
   count?: number;
   /** Size range in metres for the main sparks; the style's own range is used when absent. */
   size?: [number, number];
+  /**
+   * Grandeur of the shell: a multiplier on the burst radius (and, a little, on the star count). 1 is the ordinary
+   * shell; the grand rocket uses about 1.6. Absent means 1.
+   */
+  scale?: number;
+  /** Adds a smaller secondary break a beat after the main shell, and a long golden willow that hangs after it. */
+  multiBreak?: boolean;
 }
 
 /** Muted sky palettes (red, green, gold, blue-violet), each a deep shade and a pale one. */
@@ -52,12 +59,23 @@ const RING_TILT = 0.45;
  * intensity has to be in the hundreds for the walls and ground to visibly take the colour.
  */
 const FLASH_INTENSITY = 700;
+/**
+ * Flash intensity per square metre of distance to the listener: far bursts need more light for the same effect on
+ * the courtyard (inverse-square falloff), so the intensity grows with distance squared above the base value.
+ */
+const FLASH_PER_M2 = 0.6;
+const FLASH_MAX = 5200;
 /** Reach of the flash at the burst point, in metres; it must exceed the distance to the courtyard. */
 const FLASH_DISTANCE = 130;
+/** Seconds after the main shell that the secondary break and the golden hang begin (multi-break shells only). */
+const SECOND_BREAK_DELAY = 0.8;
+const HANG_DELAY = 0.45;
 /** Seconds the flash at the burst point lasts. */
-const FLASH_SECONDS = 0.55;
+const FLASH_SECONDS = 0.7;
 /** Distance at which the sizes in the style table are meant to be seen; nearer or farther bursts are scaled from it. */
 const REF_DISTANCE = 35;
+/** Largest size multiplier the distance scaling may give; high bursts are far away and their stars must stay fat. */
+const MAX_SIZE_SCALE = 3.2;
 /** Sizes of the white and coloured flash sprites at the reference distance, in metres, and how long they last. */
 const FLASH_CORE_SIZE = 6;
 const FLASH_HALO_SIZE = 14;
@@ -237,13 +255,13 @@ function emitGlitter(fx: FxContext, at: THREE.Vector3, count: number, colors: nu
  * One twinkling pop of the afterglow: `groups` small clusters of white-gold glitter, each at a random point on a
  * drooped shell around the burst, so the whole dandelion crackles at once instead of only its centre.
  */
-function emitGlitterShell(fx: FxContext, at: THREE.Vector3, groups: number, colors: number[]): void {
+function emitGlitterShell(fx: FxContext, at: THREE.Vector3, groups: number, colors: number[], radius = GLITTER_RADIUS): void {
   glitterOpts.speed = [0.5, 2];
   for (let g = 0; g < groups; g++) {
     const cosT = 2 * Math.random() - 1;
     const sinT = Math.sqrt(1 - cosT * cosT);
     const phi = Math.random() * TAU;
-    const r = GLITTER_RADIUS * (0.55 + Math.random() * 0.45);
+    const r = radius * (0.55 + Math.random() * 0.45);
     // The shell sags a couple of metres, since the stars it came from have drooped under gravity.
     popPos.set(sinT * Math.cos(phi) * r, cosT * r - 2, sinT * Math.sin(phi) * r).add(at);
     emitGlitter(fx, popPos, GLITTER_GROUP, colors);
@@ -256,8 +274,8 @@ function emitGlitterShell(fx: FxContext, at: THREE.Vector3, groups: number, colo
  * oversized spark that lives 0.15 s, so the sky blooms and the stars appear out of it.
  */
 function emitBurstFlash(fx: FxContext, at: THREE.Vector3, palette: number[]): void {
-  fx.sparks.emit({ position: at, speed: 0, spread: 0, count: 1, colors: WHITE_HOT, life: [FLASH_SPRITE_SECONDS, FLASH_SPRITE_SECONDS], size: FLASH_CORE_SIZE * sizeScale, gravity: 0 });
-  fx.sparks.emit({ position: at, speed: 0, spread: 0, count: 1, colors: palette, life: [FLASH_SPRITE_SECONDS * 1.3, FLASH_SPRITE_SECONDS * 1.3], size: FLASH_HALO_SIZE * sizeScale, gravity: 0 });
+  fx.sparks.emit({ position: at, speed: 0, spread: 0, count: 1, colors: WHITE_HOT, life: [FLASH_SPRITE_SECONDS, FLASH_SPRITE_SECONDS], size: FLASH_CORE_SIZE * Math.min(sizeScale, 1.8), gravity: 0 });
+  fx.sparks.emit({ position: at, speed: 0, spread: 0, count: 1, colors: palette, life: [FLASH_SPRITE_SECONDS * 1.3, FLASH_SPRITE_SECONDS * 1.3], size: FLASH_HALO_SIZE * Math.min(sizeScale, 1.8), gravity: 0 });
 }
 
 /**
@@ -271,27 +289,33 @@ export function aerialBurst(
   palette: number[],
   tune: BurstTune = {},
 ): void {
+  const scale = tune.scale ?? 1;
   // The light is seen at once, so it fires now; the bang is queued for the sound's travel time.
-  fx.flashes.flash(position, palette[0], FLASH_INTENSITY, FLASH_DISTANCE, FLASH_SECONDS);
   fx.camera.getWorldPosition(eye);
   const at = position.clone();
-  sizeScale = Math.min(2.4, Math.max(0.8, eye.distanceTo(at) / REF_DISTANCE));
+  const dist = eye.distanceTo(at);
+  // Light grows with distance squared so a burst 80 m up still washes the courtyard, and with the shell's grandeur.
+  const flashPower = Math.min(FLASH_MAX, Math.max(FLASH_INTENSITY, FLASH_PER_M2 * dist * dist) * (0.8 + 0.2 * scale));
+  fx.flashes.flash(position, palette[0], flashPower, Math.max(FLASH_DISTANCE, dist * 2), FLASH_SECONDS);
+  // Sub-linear in distance: far stars must grow to stay visible, but not so much that dense shells whiten out.
+  sizeScale = Math.min(MAX_SIZE_SCALE, Math.max(0.8, Math.pow(dist / REF_DISTANCE, 0.7)));
+  const sizeAtBurst = sizeScale;
   emitBurstFlash(fx, at, palette);
   const bangAt = at;
-  later(soundDelay(eye.distanceTo(at)), () => fx.audio.play('pop', bangAt));
+  later(soundDelay(dist), () => fx.audio.play('pop', bangAt));
 
   switch (style) {
     case 'ring':
-      emitRing(fx, at, palette, tune.count ?? RING_SPARKS);
+      emitRing(fx, at, palette, Math.round((tune.count ?? RING_SPARKS) * Math.min(1.3, scale)), scale);
       break;
     case 'crossette':
-      emitCrossette(fx, at, palette);
+      emitCrossette(fx, at, palette, scale);
       break;
     case 'palm':
-      emitPalm(fx, at, palette);
+      emitPalm(fx, at, palette, scale);
       break;
     default:
-      emitSphere(fx, at, style, palette, tune);
+      emitSphere(fx, at, style, palette, tune, scale);
       break;
   }
 
@@ -301,16 +325,54 @@ export function aerialBurst(
       emitGlitterShell(fx, bangAt, 10, WHITE_GLITTER);
     });
   }
-  afterglow(fx, at, palette);
+  if (tune.multiBreak) multiBreak(fx, at, palette, scale, sizeAtBurst, dist);
+  afterglow(fx, at, palette, scale);
+}
+
+/**
+ * The second act of a grand shell: a beat after the main break a smaller ring or crossette bursts from the same
+ * point in the shell's second colour (with its own flash and bang), and a long golden willow hangs and falls
+ * for several seconds, so the sky stays lit well after the first bloom.
+ */
+function multiBreak(fx: FxContext, at: THREE.Vector3, palette: number[], scale: number, size: number, dist: number): void {
+  const second = [palette[1], palette[0], 0xfff4d8];
+  later(HANG_DELAY, () => {
+    sizeScale = size;
+    emitHang(fx, at, scale);
+  });
+  later(SECOND_BREAK_DELAY, () => {
+    sizeScale = size;
+    fx.flashes.flash(at, palette[1], Math.min(FLASH_MAX, FLASH_PER_M2 * dist * dist * 0.7), Math.max(FLASH_DISTANCE, dist * 2), 0.45);
+    fx.audio.play('popSmall', at);
+    emitBurstFlash(fx, at, second);
+    // Alternate the second break between a tight ring and a crossette, picked per shell.
+    if (Math.random() < 0.5) emitRing(fx, at, second, 90, scale * 0.6);
+    else emitCrossette(fx, at, second, scale * 0.7);
+  });
+}
+
+/** Long golden willow hang: slow, heavy gold stars with trails that droop and glitter for five seconds or more. */
+function emitHang(fx: FxContext, at: THREE.Vector3, scale: number): void {
+  sphereOpts.position = at;
+  sphereOpts.count = 150;
+  sphereOpts.speed = [9 * scale, 13 * scale];
+  sphereOpts.life = [4.6, 6];
+  sphereOpts.size = [0.5 * sizeScale, 0.75 * sizeScale];
+  sphereOpts.trail = TRAIL;
+  sphereOpts.gravity = 2.2;
+  sphereOpts.drag = 2.1;
+  sphereOpts.colors = WILLOW_GOLD;
+  sphereOpts.crackle = true;
+  fx.sparks.emit(sphereOpts);
 }
 
 /** Emits a round sphere of sparks for the peony, willow, crackle and chrysanthemum styles. */
-function emitSphere(fx: FxContext, at: THREE.Vector3, style: 'peony' | 'willow' | 'crackle' | 'chrysanthemum', palette: number[], tune: BurstTune): void {
+function emitSphere(fx: FxContext, at: THREE.Vector3, style: 'peony' | 'willow' | 'crackle' | 'chrysanthemum', palette: number[], tune: BurstTune, scale: number): void {
   const s = STYLES[style];
   sphereOpts.position = at;
-  sphereOpts.count = tune.count ?? s.count;
-  sphereOpts.speed = s.speed;
-  sphereOpts.life = s.life;
+  sphereOpts.count = Math.round((tune.count ?? s.count) * Math.min(1.3, scale));
+  sphereOpts.speed = [s.speed[0] * scale, s.speed[1] * scale];
+  sphereOpts.life = [s.life[0] * (0.9 + 0.1 * scale), s.life[1] * (0.9 + 0.1 * scale)];
   const sz = tune.size ?? s.size;
   sphereOpts.size = [sz[0] * sizeScale, sz[1] * sizeScale];
   sphereOpts.trail = TRAIL;
@@ -319,7 +381,6 @@ function emitSphere(fx: FxContext, at: THREE.Vector3, style: 'peony' | 'willow' 
   sphereOpts.colors = style === 'willow' ? WILLOW_GOLD : palette;
   sphereOpts.crackle = s.crackle;
   fx.sparks.emit(sphereOpts);
-
 }
 
 /**
@@ -327,7 +388,7 @@ function emitSphere(fx: FxContext, at: THREE.Vector3, style: 'peony' | 'willow' 
  * ring reads as a full circle from the courtyard. Each spark is its own emit with a radial direction, reusing one
  * option object and one direction vector.
  */
-function emitRing(fx: FxContext, position: THREE.Vector3, palette: number[], count: number): void {
+function emitRing(fx: FxContext, position: THREE.Vector3, palette: number[], count: number, scale: number): void {
   fx.camera.getWorldPosition(eye);
   toView.subVectors(eye, position).normalize();
   if (Math.abs(toView.y) < 0.9) helperAxis.set(0, 1, 0);
@@ -353,7 +414,7 @@ function emitRing(fx: FxContext, position: THREE.Vector3, palette: number[], cou
     // Each spark gets a slightly jittered angle so the ring is not a set of perfect spokes.
     const a = ((k + Math.random() * 0.5) / count) * TAU;
     ringDir.set(0, 0, 0).addScaledVector(ringU, Math.cos(a)).addScaledVector(ringV, Math.sin(a));
-    ringOpts.speed = 12 + Math.random() * 2;
+    ringOpts.speed = (12 + Math.random() * 2) * scale;
     fx.sparks.emit(ringOpts);
   }
 }
@@ -362,9 +423,10 @@ function emitRing(fx: FxContext, position: THREE.Vector3, palette: number[], cou
  * Crossette: six to eight stars fly straight out in random directions, and each one splits into four sparks a
  * moment later at the point it has reached. The split is queued at the burst, using the drag-only distance.
  */
-function emitCrossette(fx: FxContext, at: THREE.Vector3, palette: number[]): void {
+function emitCrossette(fx: FxContext, at: THREE.Vector3, palette: number[], scale: number): void {
   const stars = 12 + Math.floor(Math.random() * 5);
-  const reach = dragDistance(STAR_SPEED, STAR_DRAG, SPLIT_SECONDS);
+  const starSpeed = STAR_SPEED * scale;
+  const reach = dragDistance(starSpeed, STAR_DRAG, SPLIT_SECONDS);
   for (let s = 0; s < stars; s++) {
     const cosT = 2 * Math.random() - 1;
     const sinT = Math.sqrt(1 - cosT * cosT);
@@ -373,7 +435,7 @@ function emitCrossette(fx: FxContext, at: THREE.Vector3, palette: number[]): voi
     fx.sparks.emit({
       position: at,
       direction: dir,
-      speed: STAR_SPEED,
+      speed: starSpeed,
       spread: 0.05,
       count: 7,
       colors: palette,
@@ -388,7 +450,7 @@ function emitCrossette(fx: FxContext, at: THREE.Vector3, palette: number[]): voi
       fx.sparks.emit({
         position: splitAt,
         direction: dir,
-        speed: [6, 10],
+        speed: [6 * scale, 10 * scale],
         spread: 1.0,
         count: 9,
         colors: palette,
@@ -406,7 +468,7 @@ function emitCrossette(fx: FxContext, at: THREE.Vector3, palette: number[]): voi
  * Palm: six to eight thick comet arms, each a dense line of gold sparks thrown out and up, with a bright head that
  * leads it. Gravity bends each arm into a drooping palm frond.
  */
-function emitPalm(fx: FxContext, at: THREE.Vector3, palette: number[]): void {
+function emitPalm(fx: FxContext, at: THREE.Vector3, palette: number[], scale: number): void {
   const arms = 6 + Math.floor(Math.random() * 3);
   for (let a = 0; a < arms; a++) {
     const az = (a / arms) * TAU + Math.random() * 0.3;
@@ -415,7 +477,7 @@ function emitPalm(fx: FxContext, at: THREE.Vector3, palette: number[]): void {
     fx.sparks.emit({
       position: at,
       direction: dir,
-      speed: [13, 15],
+      speed: [13 * scale, 15 * scale],
       spread: 0.05,
       count: 24,
       colors: Math.random() < 0.6 ? PALM_GOLD : palette,
@@ -429,7 +491,7 @@ function emitPalm(fx: FxContext, at: THREE.Vector3, palette: number[]): void {
     fx.sparks.emit({
       position: at,
       direction: dir,
-      speed: [13, 15],
+      speed: [13 * scale, 15 * scale],
       spread: 0,
       count: 2,
       colors: [0xfff6d8],
@@ -445,15 +507,15 @@ function emitPalm(fx: FxContext, at: THREE.Vector3, palette: number[]): void {
  * The crackle phase after every burst: three glitter pops of gold sparks over about half a second, a brief coloured
  * sky flash, and a soft smoke puff that rises after them. Its start is random between 0.4 and 1.2 s.
  */
-function afterglow(fx: FxContext, at: THREE.Vector3, palette: number[]): void {
+function afterglow(fx: FxContext, at: THREE.Vector3, palette: number[], scale: number): void {
   const t0 = AFTERGLOW_MIN + Math.random() * (AFTERGLOW_MAX - AFTERGLOW_MIN);
   later(t0, () => {
     fx.audio.play('crack', at, { volume: 0.8 });
-    emitGlitterShell(fx, at, 14, GOLD_GLITTER);
+    emitGlitterShell(fx, at, 14, GOLD_GLITTER, GLITTER_RADIUS * scale);
   });
-  later(t0 + 0.15, () => emitGlitterShell(fx, at, 10, GOLD_GLITTER));
-  later(t0 + 0.35, () => emitGlitterShell(fx, at, 8, GOLD_GLITTER));
-  later(t0 + 0.55, () => emitGlitterShell(fx, at, 6, WHITE_GLITTER));
+  later(t0 + 0.15, () => emitGlitterShell(fx, at, 10, GOLD_GLITTER, GLITTER_RADIUS * scale));
+  later(t0 + 0.35, () => emitGlitterShell(fx, at, 8, GOLD_GLITTER, GLITTER_RADIUS * scale));
+  later(t0 + 0.55, () => emitGlitterShell(fx, at, 6, WHITE_GLITTER, GLITTER_RADIUS * scale));
   later(t0 + 0.05, () => fx.flashes.flash(at, palette[0], 250, 100, 0.45));
   later(t0 + 0.6, () => fx.smoke.puff(at, { count: 4, size: 1.4, life: 5, rise: 0.2, color: SMOKE_GREY }));
 }

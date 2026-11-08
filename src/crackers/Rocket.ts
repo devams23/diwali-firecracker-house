@@ -1,6 +1,6 @@
 // Rocket: a rocket tube on a bamboo stick, standing in its green bottle on the ground. When the fuse runs out the
 // rocket body pulls out of the bottle (the bottle stays behind) and sputters at the mouth for 0.3 s. Then it
-// whooshes off along a slightly tilted path with a small wobble, accelerating to 35 m/s and trailing a dense gold
+// whooshes off along a slightly tilted path with a small wobble, accelerating to 46 m/s and trailing a dense gold
 // spark stream with a hot glowing head and a brief flash at launch. At a random apex of 30 to 38 m it bursts in one
 // of five shapes (peony, chrysanthemum, ring, crossette or palm) in a festive colour pair. The flying body is built
 // per cracker and freed when it bursts; the shared label and body materials stay.
@@ -15,14 +15,14 @@ import { events } from '../core/events';
 /** Seconds of pre-ignition sputter at the bottle mouth before the rocket leaves. */
 export const SPUTTER_SECONDS = 0.3;
 /** Longest the flight may last before the rocket bursts anyway, in seconds. */
-const FLIGHT_CAP = 3;
+const FLIGHT_CAP = 4.5;
 /** Lowest and highest apex the rocket can burst at, in metres of flight. */
-const APEX_MIN = 30;
-const APEX_MAX = 38;
+const APEX_MIN = 55;
+const APEX_MAX = 70;
 /** Top speed of the rocket, in m/s. */
-const TOP_SPEED = 35;
+const TOP_SPEED = 46;
 /** Acceleration on the way up, in m/s². */
-const ACCEL = 30;
+const ACCEL = 34;
 /** Largest tilt of the flight path away from straight up, in radians. */
 const TILT_MAX = 0.12;
 /** Sideways wobble of the body in flight, in metres, and its angular rate in rad/s. */
@@ -39,7 +39,7 @@ const HEAD_PER_FRAME = 2;
 /** Bright sparks laid along each frame's flight segment, so the ascent reads as one continuous gold streak. */
 const STREAK_PER_FRAME = 7;
 /** Distance from the camera, in metres, at which the streak and head sparks reach their full size. */
-const STREAK_FULL_DISTANCE = 30;
+const STREAK_FULL_DISTANCE = 45;
 /** Sparks per second in the sputter at the mouth, before the rocket leaves. */
 const SPUTTER_RATE = 220;
 /** Trail and head colours: gold and hot white-gold. */
@@ -52,6 +52,8 @@ const LAUNCH_FLASH_COLOR = 0xffc24a;
 const LAUNCH_FLASH_INTENSITY = 14;
 const LAUNCH_FLASH_DISTANCE = 30;
 const LAUNCH_FLASH_SECONDS = 0.3;
+/** Grandeur of the rocket's shell: radius multiplier passed to the shared burst, which also adds the multi-break. */
+const SHELL_SCALE = 2.0;
 /** Burst power announced on the game event bus when the rocket bursts. */
 const BURST_POWER = 0.7;
 const TAU = Math.PI * 2;
@@ -75,7 +77,7 @@ export function pickFestivePalette(u: number): number[] {
   return FESTIVE_PALETTES[i];
 }
 
-/** Picks the apex of a rocket's flight, in metres, from a unit random number, within the 30 to 38 m band. */
+/** Picks the apex of a rocket's flight, in metres, from a unit random number, within the 55 to 70 m band. */
 export function pickApex(u: number): number {
   return APEX_MIN + (APEX_MAX - APEX_MIN) * Math.min(1, Math.max(0, u));
 }
@@ -310,7 +312,7 @@ export class Rocket extends Cracker {
     if (!body) return;
     const style = pickRocketStyle(Math.random());
     const palette = pickFestivePalette(Math.random());
-    aerialBurst(this.fx, body.position, style, palette);
+    aerialBurst(this.fx, body.position, style, palette, { scale: SHELL_SCALE, multiBreak: true });
     // The event is at the burst point in the sky, not the bottle on the ground, so lighting reacts where the light is.
     events.emit('burst', { x: body.position.x, y: body.position.y, z: body.position.z, power: BURST_POWER });
     this.whoosh?.stop();

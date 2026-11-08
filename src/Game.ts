@@ -20,6 +20,7 @@ import { buildLighting } from './world/Lighting';
 import { Sky } from './world/Sky';
 import { Festoons } from './world/Festoons';
 import { Village } from './world/Village';
+import { Hills } from './world/Hills';
 import { Kandils, verandahKandilSpots, wallKandilSpots } from './world/Kandils';
 import { POST_X } from './world/House';
 import { Diya, DiyaField } from './items/Diya';
@@ -198,6 +199,8 @@ export class Game {
     this.engine.add(new Festoons(scene));
     // The neighbouring village beyond the low boundary wall: houses, lanes, lamps and eave lights.
     this.engine.add(new Village(scene));
+    // Distant lit hills, temple and clouds ringing the horizon.
+    this.engine.add(new Hills(scene));
     // Paper akash kandils hang under the verandah eave and glow through the bloom pass.
     this.engine.add(new Kandils(scene, [...verandahKandilSpots(POST_X), ...wallKandilSpots()]));
 

@@ -16,13 +16,13 @@ const SHELL_COUNT = 12;
 /** Seconds between one shell's launch and the next. */
 const SHELL_INTERVAL = 0.55;
 /** Lowest burst height above the cake, in metres. */
-const MIN_HEIGHT = 25;
+const MIN_HEIGHT = 38;
 /** Highest burst height above the cake, in metres. */
-const MAX_HEIGHT = 32;
+const MAX_HEIGHT = 52;
 /** Shortest rise time to the burst point, in seconds. */
-const RISE_MIN = 0.8;
+const RISE_MIN = 1.0;
 /** Longest rise time to the burst point, in seconds. */
-const RISE_MAX = 1.1;
+const RISE_MAX = 1.4;
 /** Largest tilt of the rise path away from straight up, in radians. */
 const TILT_MAX = 0.1;
 /** Trail sparks per second while a shell rises. */
@@ -175,7 +175,8 @@ export class SkyShot extends Cracker {
   /** Bursts a shell at its end point with its shape and palette, announces the event, and frees its slot. */
   private burstShell(s: Shell): void {
     s.pos.copy(s.end);
-    aerialBurst(this.fx, s.end, s.style, s.palette);
+    // Sky-show shells burst higher and wider than before, with every second one carrying a smaller second break.
+    aerialBurst(this.fx, s.end, s.style, s.palette, { scale: 1.35, multiBreak: s.style !== 'willow' && Math.random() < 0.4 });
     events.emit('burst', { x: s.end.x, y: s.end.y, z: s.end.z, power: BURST_POWER });
     s.whistle?.stop();
     s.whistle = null;
