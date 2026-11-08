@@ -8,12 +8,30 @@
 // add to the scene.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import type { Updatable } from '../core/Engine';
+
+/** URLs of the vendored MIT-licensed WebXR generic hand meshes (see public/models/hands/LICENSE.md). */
+const HAND_URL = { right: 'models/hands/right.glb', left: 'models/hands/left.glb' };
+/** Centre of the cut wrist end of the right-hand mesh, in mesh space (the left mesh is its x mirror). */
+const MESH_WRIST = new THREE.Vector3(0.039, 0.074, 0.01);
+/** Uniform scale of the real hand mesh; sized so the hand fills about a fifth of the screen height. */
+const MESH_SCALE = 1.75;
+/** Per-joint curl of each finger in degrees [proximal, intermediate, distal], progressive from index to pinky. */
+const CURL: ReadonlyArray<readonly [string, number, number, number]> = [
+  ['index', 62, 72, 55],
+  ['middle', 68, 76, 58],
+  ['ring', 74, 80, 60],
+  ['pinky', 80, 82, 62],
+];
+/** Where the stick passes through the mesh-space fist, between the curled fingers and the thumb. */
+const MESH_GRIP = new THREE.Vector3(0.012, -0.03, 0.015);
 
 /** Camera-local wrist position of the right hand: the fist sits lower right, about a quarter in from the right edge. */
 const RIGHT_BASE = new THREE.Vector3(0.34, -0.24, -0.5);
 /** Camera-local wrist position of the left hand while it holds a sparkler: lower left, cradling the stick. */
-const LEFT_BASE = new THREE.Vector3(-0.36, -0.17, -0.5);
+const LEFT_BASE = new THREE.Vector3(-0.3, -0.07, -0.5);
 /** Camera-local wrist position of the left hand when empty: well below the bottom edge of the frame. */
 const LEFT_REST = new THREE.Vector3(-0.36, -0.7, -0.5);
 /** How fast the left hand glides between its held and empty positions, per second. An empty hand clears in ~0.3 s. */
@@ -103,18 +121,28 @@ export class Hands implements Updatable {
     this.right.position.copy(RIGHT_BASE);
     this.left.position.copy(LEFT_REST);
 
-    this.right.add(buildHand(mats, this.rightGrip, 1));
-    this.left.add(buildHand(mats, this.leftGrip, -1));
-
-    // Hands skip frustum culling (their bounds sit at the screen edge) and draw after other opaque geometry;
-    // depth testing still hides them behind anything nearer, which is the desired result.
-    for (const hand of [this.right, this.left]) {
-      hand.traverse((o) => {
-        if (o instanceof THREE.Mesh) {
-          o.frustumCulled = false;
-          o.renderOrder = 10;
-        }
-      });
+    // The procedural fists show at once; each is swapped for the posed hand mesh as soon as its GLB has loaded.
+    const fallbacks = [buildHand(mats, this.rightGrip, 1), buildHand(mats, this.leftGrip, -1)];
+    this.right.add(fallbacks[0]);
+    this.left.add(fallbacks[1]);
+    markHand(this.right);
+    markHand(this.left);
+    const loader = new GLTFLoader();
+    for (const [side, group, grip, sx, fallback] of [
+      ['right', this.right, this.rightGrip, 1, fallbacks[0]],
+      ['left', this.left, this.leftGrip, -1, fallbacks[1]],
+    ] as const) {
+      loader.load(
+        import.meta.env.BASE_URL + HAND_URL[side],
+        (gltf) => {
+          group.remove(fallback);
+          group.add(buildMeshHand(gltf.scene, mats, grip, sx));
+          markHand(group);
+        },
+        undefined,
+        // A failed load simply keeps the procedural fist.
+        () => undefined,
+      );
     }
     camera.add(this.right, this.left);
     addLighting(camera);
@@ -195,17 +223,17 @@ function handMaterials(): HandMaterials {
   return {
     // Warm brown skin; the emissive keeps the fist from ever going dark in the blue night light.
     skin: new THREE.MeshStandardMaterial({
-      color: 0xa86f4c,
-      roughness: 0.55,
-      emissive: 0x4a2414,
-      emissiveIntensity: 0.35,
+      color: 0xb07a55,
+      roughness: 0.6,
+      emissive: 0x3a1a0c,
+      emissiveIntensity: 0.25,
     }),
     // Deep maroon silk with a soft sheen at grazing angles, so the sleeve catches the light like cloth.
     kurta: new THREE.MeshPhysicalMaterial({
       color: 0x6a1020,
       roughness: 0.45,
-      sheen: 0.6,
-      sheenColor: new THREE.Color(0xd08060),
+      sheen: 0.35,
+      sheenColor: new THREE.Color(0x9a3a48),
       sheenRoughness: 0.5,
       emissive: 0x2a0508,
       emissiveIntensity: 0.05,
@@ -272,6 +300,121 @@ function zariTexture(): THREE.Texture | null {
   texture.repeat.set(2, 1);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
+}
+
+/** Stops frustum culling on a hand (its bounds sit at the screen edge) and draws it after other opaque geometry. */
+function markHand(hand: THREE.Object3D): void {
+  hand.traverse((o) => {
+    if (o instanceof THREE.Mesh) {
+      o.frustumCulled = false;
+      o.renderOrder = 10;
+    }
+  });
+}
+
+/** Rotates a bone by `angle` about a mesh-space axis, pivoting on the bone itself so its child bones follow. */
+function bendBone(bone: THREE.Object3D, axis: THREE.Vector3, angle: number): void {
+  const parentQ = new THREE.Quaternion();
+  bone.parent?.getWorldQuaternion(parentQ);
+  // Carry the mesh-space axis into the parent's frame so the turn can be pre-multiplied onto the local rotation.
+  const local = axis.clone().applyQuaternion(parentQ.clone().invert());
+  bone.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(local, angle));
+  bone.updateMatrixWorld(true);
+}
+
+/**
+ * Turns a loaded WebXR generic hand into a relaxed grip. The mesh's bones come as a flat list, so each finger is first
+ * re-parented into a chain (metacarpal to tip); bending a joint then carries the joints beyond it. Mesh space: fingers
+ * run along -y, the palm side is -x on the right hand, the little finger is at +z. `sx` is -1 for the mirrored left hand.
+ */
+function poseHandBones(root: THREE.Object3D, sx: number): void {
+  const bone = (n: string) => root.getObjectByName(n) as THREE.Object3D;
+  const wrist = bone('wrist');
+  const across = new THREE.Vector3(0, 0, 1);
+  const rad = THREE.MathUtils.degToRad;
+  const chains: string[][] = CURL.map(([f]) => [
+    `${f}-finger-metacarpal`,
+    `${f}-finger-phalanx-proximal`,
+    `${f}-finger-phalanx-intermediate`,
+    `${f}-finger-phalanx-distal`,
+    `${f}-finger-tip`,
+  ]);
+  chains.push(['thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip']);
+  for (const names of chains) {
+    // attach() keeps each bone's world transform while changing its parent, so the rest pose is unchanged.
+    wrist.attach(bone(names[0]));
+    for (let i = 1; i < names.length; i++) bone(names[i - 1]).attach(bone(names[i]));
+  }
+  root.updateMatrixWorld(true);
+
+  // Curl: a negative turn about the across-the-palm axis folds a finger toward -x, the palm side (mirrored for left).
+  for (const [f, p, m, d] of CURL) {
+    bendBone(bone(`${f}-finger-phalanx-proximal`), across, -rad(p) * sx);
+    bendBone(bone(`${f}-finger-phalanx-intermediate`), across, -rad(m) * sx);
+    bendBone(bone(`${f}-finger-phalanx-distal`), across, -rad(d) * sx);
+  }
+  // Thumb: swing it in toward the index finger (about y), then fold it over the stick.
+  bendBone(bone('thumb-metacarpal'), new THREE.Vector3(0, 1, 0), rad(25) * sx);
+  bendBone(bone('thumb-metacarpal'), across, -rad(20) * sx);
+  bendBone(bone('thumb-phalanx-proximal'), across, -rad(25) * sx);
+  bendBone(bone('thumb-phalanx-distal'), across, -rad(30) * sx);
+}
+
+/**
+ * One whole hand from the WebXR generic hand mesh: the skinned mesh in the skin material, posed into a grip, with the
+ * kurta sleeve, zari cuff, kada and kalava on its wrist and the grip anchor between fingers and thumb.
+ * The wrist is the origin of the returned group.
+ */
+function buildMeshHand(scene: THREE.Object3D, mats: HandMaterials, grip: THREE.Group, sx: number): THREE.Group {
+  const model = cloneSkinned(scene);
+  poseHandBones(model, sx);
+  model.traverse((o) => {
+    if (o instanceof THREE.Mesh) o.material = mats.skin;
+  });
+
+  // Wrist-centred, scaled up a little for a sturdy, slightly stylised hand.
+  const wristAt = new THREE.Vector3(MESH_WRIST.x * sx, MESH_WRIST.y, MESH_WRIST.z);
+  const handFrame = new THREE.Group();
+  handFrame.scale.setScalar(MESH_SCALE);
+  model.position.copy(wristAt).negate();
+  handFrame.add(model);
+
+  // The forearm parts are built along +z; a quarter turn about x lays them along the mesh's +y wrist axis.
+  const forearm = new THREE.Group();
+  forearm.add(...wristAndSleeve(mats, sx));
+  forearm.rotation.x = -Math.PI / 2;
+  forearm.position.y = -0.004;
+  handFrame.add(forearm);
+
+  // The grip anchor: the stick runs across the palm (mesh z) and leaves past the little-finger side (+z).
+  const anchor = new THREE.Group();
+  anchor.position.set(MESH_GRIP.x * sx, MESH_GRIP.y, MESH_GRIP.z).sub(wristAt).multiplyScalar(MESH_SCALE);
+  anchor.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1));
+  grip.position.set(0, 0, 0);
+  grip.quaternion.identity();
+  anchor.add(grip);
+
+  // Turn mesh space into the camera-facing pose.
+  const pose = new THREE.Group();
+  pose.quaternion.copy(meshPoseQuaternion(sx));
+  pose.add(handFrame, anchor);
+  return pose;
+}
+
+/**
+ * Orientation of the mesh hand in camera space: the wrist (+y) runs down and toward the viewer out of the bottom-right,
+ * and the stick axis (+z, toward the little finger) points up and slightly forward. Mirrored for the left hand.
+ */
+function meshPoseQuaternion(sx: number): THREE.Quaternion {
+  const y = new THREE.Vector3(0.55, -0.55, 0.62).normalize();
+  // z (toward the little finger) runs up the stick, so the back of the hand faces the viewer and the thumb is below; made perpendicular to the wrist.
+  const up = new THREE.Vector3(0, 1, -0.25);
+  const z = up.clone().addScaledVector(y, -up.dot(y)).normalize();
+  const x = new THREE.Vector3().crossVectors(y, z);
+  const basis = new THREE.Matrix4().makeBasis(x, y, z);
+  const mirror = new THREE.Matrix4().makeScale(sx, 1, 1);
+  const m = new THREE.Matrix4().multiplyMatrices(mirror, basis).multiply(mirror);
+  return new THREE.Quaternion().setFromRotationMatrix(m);
 }
 
 /**
