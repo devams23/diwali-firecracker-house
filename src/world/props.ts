@@ -1,7 +1,6 @@
-// Village props: the tulsi chaura with its diya ledge and agarbatti stand, two charpais (one with the
-// thaali), the cracker boxes on the takht, a stack of matkas, a brass lota, a hand pump, a neem tree and
+// Village props: the tulsi chaura with its diya ledge and agarbatti stand, two charpais, the cracker boxes on the takht, a stack of matkas, a brass lota, a hand pump, a neem tree and
 // the akash kandil. Floor props register their footprints as colliders; items resting on a prop (the
-// diya, incense, thaali, cracker boxes) rely on the collider of the thing they sit on.
+// diya, incense, cracker boxes) rely on the collider of the thing they sit on.
 import * as THREE from 'three';
 import { PALETTE } from '../core/palette';
 import type { CollisionWorld } from '../core/Collision';
@@ -24,7 +23,7 @@ function css(hex: number): string {
   return '#' + hex.toString(16).padStart(6, '0');
 }
 
-/** Brass finish shared by the agarbatti stand, thaali and lota. */
+/** Brass finish shared by the agarbatti stand and lota. */
 function brassMaterial(): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ color: PALETTE.brass, metalness: 0.8, roughness: 0.35 });
 }
@@ -197,16 +196,13 @@ function limb(
 }
 
 /**
- * Props layout result: the diya and agarbatti spots on the chaura, the thaali spot on the first charpai and
- * the takht's cracker boxes in CRACKER_ORDER.
+ * Props layout result: the diya and agarbatti spots on the chaura and the takht's cracker boxes in CRACKER_ORDER.
  */
 export interface PropsResult {
   /** Flame base spot for the main diya on the chaura ledge. */
   tulsiDiyaPos: THREE.Vector3;
   /** Brass agarbatti stand beside the diya on the same ledge. */
   agarbattiStandPos: THREE.Vector3;
-  /** Resting spot of the thaali on the first charpai. */
-  charpaiThaaliPos: THREE.Vector3;
   /** Cracker boxes in a row on the takht, one per kind. */
   takhtBoxes: { kind: CrackerKind; position: THREE.Vector3 }[];
 }
@@ -224,8 +220,6 @@ export function buildProps(
   buildAgarbattiStand(scene, agarbattiStandPos);
 
   const rope = ropeTexture();
-  // The thaali itself is built by the game; this is only the spot it is set down on.
-  const charpaiThaaliPos = new THREE.Vector3(4.5, 0.48, 3.5);
   buildCharpai(scene, world, tex, rope, 4.5, 3.5);
   buildCharpai(scene, world, tex, rope, -6, 2);
 
@@ -236,7 +230,7 @@ export function buildProps(
   buildNeem(scene, world, tex);
   buildAkashKandil(scene, house.verandahLanternAnchor);
 
-  return { tulsiDiyaPos, agarbattiStandPos, charpaiThaaliPos, takhtBoxes };
+  return { tulsiDiyaPos, agarbattiStandPos, takhtBoxes };
 }
 
 /**

@@ -1,5 +1,5 @@
 // The game: builds the village, the player, the cracker systems and the Diwali UI, then runs one per-frame loop that
-// reads keys and clicks, handles the thaali and the sparklers, schedules far-off bangs and runs the finale.
+// reads keys and clicks, handles the cracker inventory and the sparklers, schedules far-off bangs and runs the finale.
 // main.ts only constructs this class and calls start().
 import './style.css';
 import './ui/ui.css';
@@ -20,7 +20,7 @@ import { buildLighting } from './world/Lighting';
 import { Sky } from './world/Sky';
 import { Festoons } from './world/Festoons';
 import { Diya, DiyaField } from './items/Diya';
-import { Thaali } from './items/Thaali';
+import { Inventory, slotIndexForKey } from './items/Inventory';
 import { Agarbatti } from './items/Agarbatti';
 import { SparkSystem } from './fx/SparkSystem';
 import { SmokeSystem } from './fx/SmokeSystem';
@@ -34,10 +34,9 @@ import { createCracker } from './crackers/factory';
 import { HandHeld } from './crackers/HandHeld';
 import type { Cracker } from './crackers/Cracker';
 import { CRACKERS, type CrackerKind } from './crackers/catalog';
-import { placementPoint } from './crackers/placement';
+import { placementFor, placementPoint } from './crackers/placement';
 import { Intro } from './ui/Intro';
 import { Prompt } from './ui/Prompt';
-import { ThaaliStrip } from './ui/ThaaliStrip';
 import { Pause } from './ui/Pause';
 import { Finale, FinaleCounter, countsTowardFinale } from './ui/Finale';
 import { Toast } from './ui/Toast';
@@ -59,8 +58,15 @@ const INTRO_WALK_METRES = 1;
 const PLAYER_RADIUS = 0.3;
 /** Height of the brass cup above the stand's origin, where the agarbatti's base sits. */
 const STAND_CUP_HEIGHT = 0.042;
-/** Metres within which a dropped thaali is picked up again when a sparkler burns out. */
-const THAALI_RECATCH_REACH = 2;
+/** The keys that pick a hotbar slot directly, in slot order: Digit1 to Digit9, then Digit0. */
+const HOTBAR_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0'];
+/** Crackers the player starts with, so play begins at once: a few of each common kind. */
+const STARTER_PACK: [CrackerKind, number][] = [
+  ['phuljhadi', 5],
+  ['anar', 3],
+  ['chakri', 2],
+  ['rocket', 2],
+];
 /** Seconds the "Step back!" prompt stays after a cracker is lit on the ground. */
 const STEP_BACK_SECONDS = 2;
 /** Reach, in metres, of the look-direction fallback for lighting a cracker on the ground. */
@@ -112,17 +118,17 @@ export class Game {
   private readonly fx: FxContext;
   private readonly sky: Sky;
   private readonly crackers: CrackerManager;
-  private readonly thaali: Thaali;
+  private readonly inventory: Inventory;
   private readonly agarbatti: Agarbatti;
   private readonly props: PropsResult;
   private readonly interactables: Interactable[] = [];
   private readonly candidates: Interactable[] = [];
   private readonly state: PlayerState = {
-    thaali: 'charpai',
     hasAgarbatti: false,
     agarbattiLit: false,
-    leftHand: 'empty',
-    thaaliCount: 0,
+    selectedName: '',
+    selectedCount: 0,
+    totalCount: 0,
     placedUnlit: 0,
     burstCount: 0,
   };
@@ -130,7 +136,6 @@ export class Game {
   private readonly finaleCounter = new FinaleCounter();
   private readonly intro: Intro;
   private readonly prompt: Prompt;
-  private readonly strip: ThaaliStrip;
   private readonly pause: Pause;
   private readonly finale: Finale;
   private readonly toast: Toast;
@@ -228,10 +233,8 @@ export class Game {
 
     this.crackers = new CrackerManager(scene);
     this.engine.add(this.crackers);
-    this.thaali = new Thaali();
-    this.thaali.placeAt(this.props.charpaiThaaliPos);
-    this.thaali.location = 'charpai';
-    scene.add(this.thaali.object);
+    this.inventory = new Inventory();
+    for (const [kind, n] of STARTER_PACK) this.inventory.add(kind, n);
     this.agarbatti = new Agarbatti(this.fx);
     this.engine.add(this.agarbatti);
     // The agarbatti stands upright in the brass cup from the start; taking it reparents it to the right hand.
@@ -250,7 +253,6 @@ export class Game {
 
     this.toast = new Toast(uiEl);
     this.prompt = new Prompt(uiEl);
-    this.strip = new ThaaliStrip(uiEl);
     this.finale = new Finale(uiEl);
     this.pause = new Pause(uiEl, {
       onResume: () => this.input.requestLock(),
@@ -286,7 +288,7 @@ export class Game {
         lightAll: () => this.debugLightAll(),
         teleport: (x, z, yaw, pitch) => this.debugTeleport(x, z, yaw, pitch),
         state: () => ({ ...this.state }),
-        pickupAll: () => this.debugPickupAll(),
+        heldShot: () => this.debugHeldShot(),
         skyShow: (yaw) => this.debugSkyShow(yaw),
         advance: (seconds) => this.engine.advance(seconds),
         skyBursting: () => this.sky.burstingCount(),
@@ -299,38 +301,20 @@ export class Game {
     this.engine.start();
   }
 
-  /** Creates every interactable: the thaali, the ten takht boxes, the agarbatti stand and the tulsi diya. */
+  /**
+   * Creates every interactable: the stall boxes (each buys a pack), the agarbatti stand and the tulsi diya. The
+   * stall boxes are the only way to restock, so their label names the pack that E will add.
+   */
   private buildInteractables(): void {
-    this.interactables.push({
-      id: 'thaali',
-      position: this.thaali.object.position,
-      radius: 0.25,
-      label: () => {
-        if (this.leftHeld) return null;
-        if (this.thaali.location === 'charpai') return 'E — Pick up the thaali (plate)';
-        if (this.thaali.location === 'ground') return 'E — Pick up your thaali';
-        return null;
-      },
-      act: () => this.pickUpThaali(),
-    });
-
     for (const box of this.props.takhtBoxes) {
-      const putLabel = `E — Put a ${CRACKERS[box.kind].label} on the thaali`;
+      const info = CRACKERS[box.kind];
+      const label = `E — Take ${info.pack} ${info.label}`;
       this.interactables.push({
         id: `box-${box.kind}`,
         position: box.position,
         radius: 0.3,
-        label: () => {
-          if (this.thaali.location !== 'hand') return 'Pick up your thaali first';
-          if (this.thaali.inventory.full) return 'The thaali is full';
-          return putLabel;
-        },
-        act: () => {
-          if (this.thaali.location !== 'hand') return;
-          if (!this.thaali.inventory.add(box.kind)) return;
-          this.thaali.refresh();
-          this.refreshStrip();
-        },
+        label: () => label,
+        act: () => this.buyPack(box.kind, box.position),
       });
     }
 
@@ -369,7 +353,17 @@ export class Game {
     this.player.forward(this.walkDir);
     this.introElapsed = 0;
     this.introWalking = true;
-    this.refreshStrip();
+  }
+
+  /**
+   * Adds one pack of the given kind to the inventory when a stall box is used, confirms it with a toast in both
+   * scripts and plays the paper-rustle sound at the box.
+   */
+  private buyPack(kind: CrackerKind, at: THREE.Vector3): void {
+    const info = CRACKERS[kind];
+    this.inventory.add(kind, info.pack);
+    this.audio.play('place', at);
+    this.toast.show(`+${info.pack} ${info.label} · ${info.hindi}`);
   }
 
   /** One frame of game logic, run after the player and hands have moved and before the camera shake is applied. */
@@ -420,13 +414,12 @@ export class Game {
   /** Copies the gameplay facts the prompts and hints depend on into the shared state object. */
   private syncState(): void {
     const s = this.state;
-    s.thaali = this.thaali.location;
+    const sel = this.inventory.selected;
     s.hasAgarbatti = this.hasAgarbatti;
     s.agarbattiLit = this.agarbattiLit;
-    if (this.leftHeld) s.leftHand = 'cracker';
-    else if (this.thaali.location === 'hand') s.leftHand = 'thaali';
-    else s.leftHand = 'empty';
-    s.thaaliCount = this.thaali.inventory.items.length;
+    s.selectedName = CRACKERS[sel].label;
+    s.selectedCount = this.inventory.count(sel);
+    s.totalCount = this.inventory.total;
     s.placedUnlit = this.crackers.unlitCount;
     s.burstCount = this.finaleCounter.count;
   }
@@ -459,10 +452,14 @@ export class Game {
 
     if (this.input.pressed('KeyE') && this.focus) this.focus.act();
     if (this.input.pressed('KeyF')) this.onPlace();
-    if (this.input.pressed('KeyG')) this.toggleThaali();
-    if (this.input.pressed('KeyQ')) this.cycleSelection(1);
+    // Digits pick a hotbar slot directly; Q and the wheel step through the slots one at a time.
+    for (const code of HOTBAR_KEYS) {
+      const slot = slotIndexForKey(code);
+      if (slot !== null && this.input.pressed(code)) this.inventory.select(slot);
+    }
+    if (this.input.pressed('KeyQ')) this.inventory.cycle(1);
     const wheel = this.input.wheel();
-    if (wheel !== 0) this.cycleSelection(wheel > 0 ? 1 : -1);
+    if (wheel !== 0) this.inventory.cycle(wheel > 0 ? 1 : -1);
     if (this.input.pressed('KeyM')) this.toggleSound();
     if (this.input.clicked()) this.onClick(t);
   }
@@ -507,35 +504,32 @@ export class Game {
   }
 
   /**
-   * F places the selected cracker. A ground cracker is set down in front of the player; a hand-held one puts the
-   * thaali down at the player's feet and takes the sparkler into the left hand.
+   * F places the selected cracker. Nothing happens when the selected kind is used up. A hand-held kind (phuljhadi,
+   * pencil) goes into the left hand and consumes one; any other kind is set down on the ground where the crosshair
+   * lands within reach, or 1.2 m ahead when it does not.
    */
   private onPlace(): void {
-    if (this.thaali.location !== 'hand') return;
-    const kind = this.thaali.inventory.selectedKind;
-    if (kind === null) return;
+    const kind = this.inventory.selected;
+    if (this.inventory.count(kind) <= 0) return;
 
     if (CRACKERS[kind].handheld) {
       if (this.leftHeld) return;
-      this.thaali.inventory.takeSelected();
-      this.putDownThaali();
+      this.inventory.take(kind);
       const c = createCracker(kind, this.fx, ORIGIN, this.player.yaw);
       // Added to the manager first: adding to the scene would otherwise pull the object back out of the hand.
       this.crackers.add(c);
       if (c instanceof HandHeld) {
         c.onBurnOut = () => this.onSparklerOut(c);
-        c.attach(this.hands.leftHold);
+        this.hands.holdLeft(c.object);
         this.leftHeld = c;
       }
       return;
     }
 
-    this.thaali.inventory.takeSelected();
-    this.thaali.refresh();
+    this.inventory.take(kind);
     this.player.forward(this.tmpForward);
-    const spot = placementPoint(this.player.position, this.tmpForward);
+    const spot = placementFor(this.engine.camera.position, this.lookDir(this.tmpDir), this.tmpForward);
     this.crackers.add(createCracker(kind, this.fx, spot, this.player.yaw));
-    this.refreshStrip();
   }
 
   /** Clears the left hand when a sparkler burns out and counts it toward the finale. */
@@ -545,47 +539,6 @@ export class Game {
       this.hands.holdLeft(null);
     }
     this.countBurst();
-    // The plate was set down to free the hand; if it is still close, it goes straight back into the hand.
-    if (this.thaali.location === 'ground') {
-      const tp = this.thaali.object.position;
-      const dx = tp.x - this.player.position.x;
-      const dz = tp.z - this.player.position.z;
-      if (dx * dx + dz * dz <= THAALI_RECATCH_REACH * THAALI_RECATCH_REACH) this.pickUpThaali();
-    }
-  }
-
-  /** G moves the thaali between the hand and the ground. */
-  private toggleThaali(): void {
-    if (this.thaali.location === 'hand') this.putDownThaali();
-    else if (!this.leftHeld) this.pickUpThaali();
-  }
-
-  /** Puts the thaali in the left hand. */
-  private pickUpThaali(): void {
-    this.thaali.location = 'hand';
-    this.hands.holdLeft(this.thaali.object);
-    this.refreshStrip();
-  }
-
-  /** Sets the thaali down on the ground in front of the player and shows a short confirmation. */
-  private putDownThaali(): void {
-    this.player.forward(this.tmpForward);
-    const spot = placementPoint(this.player.position, this.tmpForward);
-    this.hands.holdLeft(null);
-    this.thaali.object.rotation.set(0, 0, 0);
-    this.thaali.placeAt(spot);
-    this.engine.scene.add(this.thaali.object);
-    this.thaali.location = 'ground';
-    this.refreshStrip();
-    this.toast.show('Thaali set down beside you');
-  }
-
-  /** Moves the selection on the thaali by one, in the direction given, and rebuilds the plate's ring. */
-  private cycleSelection(dir: 1 | -1): void {
-    if (this.thaali.location !== 'hand') return;
-    this.thaali.inventory.cycle(dir);
-    this.thaali.refresh();
-    this.refreshStrip();
   }
 
   /** Flips the mute state and confirms it on screen. */
@@ -593,11 +546,6 @@ export class Game {
     this.audio.setMuted(!this.audio.muted);
     this.toast.show(this.audio.muted ? 'Sound off' : 'Sound on', 1.6);
     this.pause.refresh();
-  }
-
-  /** Shows the thaali strip, or hides it when the plate is not in hand. */
-  private refreshStrip(): void {
-    this.strip.set(this.thaali.inventory.items, this.thaali.inventory.selected, this.thaali.location === 'hand');
   }
 
   /** Counts one burst toward the finale, and starts the finale on the call that reaches the target. */
@@ -647,18 +595,16 @@ export class Game {
   }
 
   /**
-   * Debug hook: puts the thaali in the left hand with a few crackers on it, and gives the player the agarbatti already
-   * lit in the right hand, so a screenshot can show the held state without playing through the pickups.
+   * Debug hook: gives the player the agarbatti already lit in the right hand, selects the first hotbar slot and
+   * places it, so a screenshot shows a phuljhadi held in the left hand without playing through the pickups.
    */
-  private debugPickupAll(): void {
-    this.pickUpThaali();
-    for (const kind of ['anar', 'chakri', 'laxmi', 'sutli'] as CrackerKind[]) this.thaali.inventory.add(kind);
-    this.thaali.refresh();
-    this.refreshStrip();
+  private debugHeldShot(): void {
     this.hasAgarbatti = true;
     this.hands.holdRight(this.agarbatti.object);
     this.agarbattiLit = true;
     this.agarbatti.light();
+    this.inventory.select(0);
+    this.onPlace();
   }
 
   /**

@@ -1,6 +1,6 @@
 // Procedural cracker models: one small, recognisable mesh per cracker kind, each with a canvas label in a muted
 // Sivakasi style and a child Object3D named "fuse" at the tip that gets lit. Labels and shared materials are
-// cached per kind, so the ten copies of one cracker on a thaali reuse the same GPU textures.
+// cached per kind, so the copies of one cracker on the stall reuse the same GPU textures.
 import * as THREE from 'three';
 import { CRACKERS, type CrackerKind } from '../crackers/catalog';
 
@@ -163,7 +163,7 @@ function chakri(): THREE.Group {
 
 /**
  * Rocket: a rocket tube on a long thin bamboo stick, standing in a green glass bottle unless `bottle` is false
- * (the thaali drops the bottle); fuse on the tube's top.
+ * (a stall sample can leave the bottle off); fuse on the tube's top.
  */
 function rocket(opts: ModelOptions): THREE.Group {
   const g = new THREE.Group();

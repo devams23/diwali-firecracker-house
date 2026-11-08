@@ -1,5 +1,5 @@
 /*
- * Diwali UI styling: the opening card, the prompt chip, the thaali strip, the pause panel, the toast and the finale
+ * Diwali UI styling: the opening card, the prompt chip, the pause panel, the toast and the finale
  * greeting. Warm browns and gold only; no neon, no glassmorphism, no emoji, no arcade text.
  * Fonts: Tiro Devanagari Hindi for the Hindi lines, Cormorant Garamond for display, Inter for controls.
  */
@@ -152,51 +152,6 @@
   text-overflow: ellipsis;
 }
 
-/* ---------- Thaali strip (bottom right) ---------- */
-
-.thaali-strip {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 60vh;
-  overflow: hidden;
-  padding: 8px;
-  border-radius: 10px;
-  background: var(--ui-chip);
-  border: 1px solid var(--ui-hairline);
-}
-
-.thaali-slot {
-  min-width: 118px;
-  padding: 5px 10px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  background: rgba(60, 38, 22, 0.55);
-}
-
-.thaali-slot.is-selected {
-  border-color: var(--ui-gold);
-  background: rgba(96, 62, 30, 0.8);
-}
-
-.slot-hi {
-  font-family: var(--ui-deva);
-  font-size: 16px;
-  line-height: 1.3;
-  color: var(--ui-ink);
-}
-
-.slot-en {
-  font-family: var(--ui-sans);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ui-ink-dim);
-}
-
 /* ---------- Toast (top centre) ---------- */
 
 .toast {
@@ -321,10 +276,6 @@
 /* ---------- Phone width ---------- */
 
 @media (max-width: 600px) {
-  .thaali-strip {
-    right: 10px;
-    bottom: 10px;
-  }
   .prompt-text {
     font-size: 16px;
   }

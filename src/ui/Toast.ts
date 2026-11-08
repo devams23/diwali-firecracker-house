@@ -1,4 +1,4 @@
-// Small status line at the top centre of the screen, used for brief confirmations such as "Thaali set down beside you".
+// Small status line at the top centre of the screen, used for brief confirmations such as "+5 Anar · अनार" when a stall box is bought from.
 // Each show() replaces the text and restarts the hide timer.
 
 /** A short message that fades in at the top centre and fades out after a few seconds. */

@@ -33,7 +33,7 @@ export class Pause {
       '<li>E pick up, take or act</li>' +
       '<li>F set the selected cracker down</li>' +
       '<li>Q or scroll choose a cracker</li>' +
-      '<li>G pick up or set down the thaali</li>' +
+      '<li>1–0 or wheel pick a slot on the hotbar</li>' +
       '<li>Click touch the flame to a fuse</li>' +
       '<li>M sound on or off</li>' +
       '</ul></div>';

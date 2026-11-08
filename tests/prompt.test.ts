@@ -4,9 +4,9 @@ import { parsePrompt } from '../src/ui/Prompt';
 
 describe('parsePrompt', () => {
   it('splits an E prompt with an em dash into key and text', () => {
-    expect(parsePrompt('E — Pick up the thaali (plate)')).toEqual({
+    expect(parsePrompt('E — Light the agarbatti')).toEqual({
       key: 'E',
-      text: 'Pick up the thaali (plate)',
+      text: 'Light the agarbatti',
     });
   });
 

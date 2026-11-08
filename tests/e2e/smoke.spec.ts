@@ -104,7 +104,7 @@ test('loads without console errors, starts from the intro and renders a lit vill
   await page.goto('/');
   await startFromIntro(page);
 
-  // The start view, with the hands and the thaali on the charpai in the foreground.
+  // The start view, with the hands and the hotbar of crackers in the foreground.
   await page.screenshot({ path: 'screenshots/hands.png' });
   const aangan = await page.screenshot({ path: 'screenshots/aangan.png' });
   expect((await pixelStats(page, aangan)).mean).toBeGreaterThan(MIN_MEAN_LUMINANCE);
@@ -112,14 +112,14 @@ test('loads without console errors, starts from the intro and renders a lit vill
   expect(errors).toEqual([]);
 });
 
-test('the held shot shows the thaali with crackers and the lit agarbatti', async ({ page }) => {
+test('the held shot shows a phuljhadi in the left hand and the lit agarbatti in the right', async ({ page }) => {
   const errors = await watchErrors(page);
   await page.goto('/?debug');
   await startFromIntro(page);
 
-  // The thaali on the left palm with crackers on it, and the agarbatti lit in the right fist. The hands ease into
-  // their held pose over a few frames, so the shot waits briefly before it is taken.
-  await page.evaluate(() => window.__diwali!.pickupAll());
+  // A phuljhadi on the left palm, and the agarbatti lit in the right fist. The hands ease into their held pose over a
+  // few frames, so the shot waits briefly before it is taken.
+  await page.evaluate(() => window.__diwali!.heldShot());
   await page.waitForTimeout(HELD_SETTLE_MS);
   const held = await page.screenshot({ path: 'screenshots/held.png' });
 
