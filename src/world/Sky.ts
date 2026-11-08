@@ -339,7 +339,8 @@ export class Sky implements Updatable {
       }),
     );
     moon.position.copy(MOON_DIRECTION).multiplyScalar(MOON_R);
-    moon.scale.set(30, 30, 1);
+    // A big glowing moon (about 12 degrees across with its halo) that rides above the hill ring.
+    moon.scale.set(80, 80, 1);
     scene.add(moon);
   }
 

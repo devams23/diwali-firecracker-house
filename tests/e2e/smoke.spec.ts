@@ -123,6 +123,20 @@ test('loads without console errors, starts from the intro and renders a lit vill
   expect(errors).toEqual([]);
 });
 
+test('the vista looks over the courtyard wall to the lit hills', async ({ page }) => {
+  const errors = await watchErrors(page);
+  await page.goto('/?debug');
+  await startFromIntro(page);
+
+  // From the courtyard, looking out over the low wall and the village lane toward the hills, tipped up a little so the sky is open.
+  await page.evaluate(() => window.__diwali!.teleport(2, 4, Math.PI - 0.55, 0.1));
+  await page.waitForTimeout(VIEW_SETTLE_MS);
+  const vista = await page.screenshot({ path: 'screenshots/vista.png' });
+
+  expect((await pixelStats(page, vista)).mean).toBeGreaterThan(MIN_MEAN_LUMINANCE);
+  expect(errors).toEqual([]);
+});
+
 test('the cracker stall reads bright from the walk, with the hotbar in view', async ({ page }) => {
   const errors = await watchErrors(page);
   await page.goto('/?debug');
