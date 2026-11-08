@@ -145,7 +145,10 @@ function anar(): THREE.Group {
   const g = new THREE.Group();
   part(g, new THREE.CylinderGeometry(0.028, 0.034, 0.02, 14), solid(CLAY, 0.9), 0, 0.01, 0);
   const label = labelMaterial('anar');
-  part(g, new THREE.ConeGeometry(0.035, 0.1, 16), [label, solid(GERU, 0.8)], 0, 0.07, 0);
+  // A cone's base cap is geometry group 2 (group 1 would be the top cap, which a cone does not have), so the array
+  // needs three entries; with two, raycasts read an undefined material and throw.
+  const geru = solid(GERU, 0.8);
+  part(g, new THREE.ConeGeometry(0.035, 0.1, 16), [label, geru, geru], 0, 0.07, 0);
   fuseAt(g, 0, 0.12, 0);
   return g;
 }
