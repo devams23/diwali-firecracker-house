@@ -47,6 +47,9 @@ export function createCracker(kind: CrackerKind, fx: FxContext, position: THREE.
     case 'skyshot':
       c = new SkyShot(fx, makeCrackerModel(kind));
       break;
+    case 'kandil':
+      // Sky lanterns are released by the lantern system, never set on the ground, so there is no cracker for them.
+      throw new Error('The sky lantern is released in hand, not placed as a cracker');
     default: {
       // Unreachable while every kind is handled: a new CrackerKind without a case fails to compile here.
       const missing: never = kind;

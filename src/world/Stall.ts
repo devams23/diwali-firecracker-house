@@ -1,5 +1,5 @@
 // The cracker stall in the open aangan: a wooden counter with a maroon cloth front and a marigold garland, a low riser at
-// the back, and ten tilted cardboard boxes in two tiered rows, one per cracker kind, each holding a sample cracker. A
+// the back, and eleven tilted cardboard boxes in two tiered rows, one per cracker kind, each holding a sample cracker. A
 // striped awning on four posts shades it, a glowing header board reads "पटाखे · Patakhe" along the awning's front edge,
 // a row of bulbs hangs under the board, and a warm lamp plus a soft spot make it the brightest spot in the courtyard. The
 // boxes are the only restock: each is an interactable whose E press adds one pack of its kind.
@@ -54,7 +54,7 @@ export interface StallBox {
 
 /**
  * Builds the counter, riser, boxes, awning, signboard, garland and lights of the stall into the scene, registers the
- * counter as a floor collider and returns the ten boxes in CRACKER_ORDER.
+ * counter as a floor collider and returns the eleven boxes in CRACKER_ORDER.
  */
 export function buildStall(scene: THREE.Scene, world: CollisionWorld, tex: Textures): StallBox[] {
   const stall = new THREE.Group();
@@ -185,7 +185,7 @@ export function buildStall(scene: THREE.Scene, world: CollisionWorld, tex: Textu
   spot.target = spotTarget;
   stall.add(spot);
 
-  // Ten boxes, one per kind: the first five form the back row on the riser, the rest the front row on the counter. Each
+  // Eleven boxes, one per kind: the first six form the back row on the riser, the rest the front row on the counter. Each
   // is tipped forward by a hand-chosen amount so the row looks loose.
   const r = rng(616);
   const boxes: StallBox[] = [];
@@ -197,9 +197,12 @@ export function buildStall(scene: THREE.Scene, world: CollisionWorld, tex: Textu
     const mats = [cardboard, cardboard, inside, cardboard, label, cardboard];
     const box = new THREE.Mesh(new THREE.BoxGeometry(BOX_W, BOX_H, BOX_D), mats);
 
-    const back = i < CRACKER_ORDER.length / 2;
-    const col = back ? i : i - CRACKER_ORDER.length / 2;
-    const x = (col - (CRACKER_ORDER.length / 2 - 1) / 2) * BOX_PITCH;
+    // With an odd number of kinds the back row takes the extra box; each row is centred on its own length.
+    const backCount = Math.ceil(CRACKER_ORDER.length / 2);
+    const back = i < backCount;
+    const col = back ? i : i - backCount;
+    const rowLen = back ? backCount : CRACKER_ORDER.length - backCount;
+    const x = (col - (rowLen - 1) / 2) * BOX_PITCH;
     // The back row stands on the riser, the front row on the counter top, and each sits clear of the other row.
     const baseY = back ? COUNTER_H + RISER_H : COUNTER_H;
     const z = back ? -0.22 : 0.14;

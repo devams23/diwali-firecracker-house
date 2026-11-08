@@ -64,7 +64,7 @@ interface RowDiya {
 let haloTex: THREE.CanvasTexture | null = null;
 
 /** Soft round radial glow, drawn once on canvas and shared by every halo. */
-function haloTexture(): THREE.CanvasTexture {
+export function haloTexture(): THREE.CanvasTexture {
   if (haloTex) return haloTex;
   const c = document.createElement('canvas');
   c.width = c.height = 64;

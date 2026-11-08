@@ -1,4 +1,4 @@
-// Bottom-centre cracker hotbar: ten slots numbered 1 to 9 and 0, each with its procedural icon, the count of that
+// Bottom-centre cracker hotbar: eleven slots numbered 1 to 9, 0 and -, each with its procedural icon, the count of that
 // kind (top-right area, dimmed at zero) and a gold border with a small lift when selected. The selected kind's name
 // sits above the bar in English and Devanagari. update() writes only the parts that changed, so it is cheap to call
 // every frame. The bar ignores the pointer: selection is by keys and the wheel.
@@ -6,8 +6,8 @@ import { CRACKER_ORDER, CRACKERS, type CrackerKind } from '../crackers/catalog';
 import type { Inventory } from '../items/Inventory';
 import { drawCrackerIcon } from './crackerIcons';
 
-/** The number printed on each slot, in slot order: 1 to 9, then 0. */
-const SLOT_NUMBERS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+/** The number printed on each slot, in slot order: 1 to 9, then 0, then the minus key for the sky lantern. */
+const SLOT_NUMBERS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'];
 /** Pixel size the icon canvas is drawn at: twice the on-screen size, so the icons stay crisp on dense screens. */
 const ICON_PX = 112;
 
@@ -31,7 +31,7 @@ function span(cls: string, text = ''): HTMLSpanElement {
   return el;
 }
 
-/** The hotbar overlay: a name line above a row of ten cracker slots. */
+/** The hotbar overlay: a name line above a row of eleven slots. */
 export class Hotbar {
   private readonly root: HTMLDivElement;
   private readonly nameEn: HTMLSpanElement;

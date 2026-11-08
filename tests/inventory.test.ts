@@ -83,7 +83,7 @@ describe('Inventory selection', () => {
     const inv = new Inventory();
     inv.cycle(-1);
     expect(inv.selectedIndex).toBe(SLOT_COUNT - 1);
-    expect(inv.selected).toBe('skyshot');
+    expect(inv.selected).toBe('kandil');
   });
 
   it('keeps the selection when a count goes to zero, so the hotbar still shows it', () => {
@@ -100,6 +100,7 @@ describe('slotIndexForKey', () => {
     expect(slotIndexForKey('Digit1')).toBe(0);
     expect(slotIndexForKey('Digit9')).toBe(8);
     expect(slotIndexForKey('Digit0')).toBe(9);
+    expect(slotIndexForKey('Minus')).toBe(10);
   });
 
   it('returns null for every other key', () => {
@@ -122,11 +123,12 @@ describe('pack sizes', () => {
       ladi: 1,
       saanp: 10,
       skyshot: 1,
+      kandil: 3,
     };
     for (const kind of CRACKER_ORDER) expect(CRACKERS[kind].pack).toBe(expected[kind]);
   });
 
   it('has one slot per cracker kind', () => {
-    expect(SLOT_COUNT).toBe(10);
+    expect(SLOT_COUNT).toBe(11);
   });
 });

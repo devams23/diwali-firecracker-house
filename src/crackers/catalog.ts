@@ -1,4 +1,4 @@
-// Cracker catalogue: the ten cracker kinds in fixed order with their English and Hindi names,
+// Cracker catalogue: the eleven kinds (ten crackers and the Akash Kandil sky lantern) in fixed order with their English and Hindi names,
 // fuse times, hand-held flag, box tint and pack size. Shared by the stall boxes, the inventory and the firing systems.
 
 /** Identifier for every cracker the game knows about. */
@@ -12,7 +12,8 @@ export type CrackerKind =
   | 'sutli'
   | 'ladi'
   | 'saanp'
-  | 'skyshot';
+  | 'skyshot'
+  | 'kandil';
 
 /** Display metadata for one cracker kind. */
 export interface CrackerInfo {
@@ -42,6 +43,7 @@ export const CRACKER_ORDER: CrackerKind[] = [
   'ladi',
   'saanp',
   'skyshot',
+  'kandil',
 ];
 
 /** Metadata per kind; fuse times and placements follow the design spec's cracker table. */
@@ -56,4 +58,6 @@ export const CRACKERS: Record<CrackerKind, CrackerInfo> = {
   ladi: { label: 'Ladi', hindi: 'लड़ी', handheld: false, fuse: 2, tint: 0xb0603a, pack: 1 },
   saanp: { label: 'Saanp Goli', hindi: 'साँप गोली', handheld: false, fuse: 1.5, tint: 0x4f6a5a, pack: 10 },
   skyshot: { label: 'Sky Shot', hindi: 'स्काई शॉट', handheld: false, fuse: 3, tint: 0x3f5a7a, pack: 1 },
+  // The sky lantern is not a cracker: F lights it in hand and lets it go (see features/SkyLanterns).
+  kandil: { label: 'Akash Kandil', hindi: 'आकाश कंदील', handheld: false, fuse: 0, tint: 0xb5652a, pack: 3 },
 };

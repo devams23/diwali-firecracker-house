@@ -44,7 +44,7 @@ function drawMotif(g: CanvasRenderingContext2D, kind: CrackerKind, x: number, y:
   g.strokeStyle = '#e8dcc4';
   g.fillStyle = '#e8dcc4';
   g.lineWidth = 2;
-  if (kind === 'laxmi' || kind === 'anar') {
+  if (kind === 'laxmi' || kind === 'anar' || kind === 'kandil') {
     for (let i = 0; i < 6; i++) {
       g.save();
       g.translate(x, y);
@@ -272,6 +272,16 @@ function skyshot(): THREE.Group {
   return g;
 }
 
+/** Akash Kandil: a folded paper sky lantern, a warm glowing paper drum narrowing to its base ring, with a bamboo rim. */
+function kandil(): THREE.Group {
+  const g = new THREE.Group();
+  const paper = new THREE.MeshStandardMaterial({ color: 0xf0b070, emissive: 0xc8661c, emissiveIntensity: 0.45, roughness: 0.8, side: THREE.DoubleSide });
+  part(g, new THREE.CylinderGeometry(0.055, 0.04, 0.13, 14, 1, true), paper, 0, 0.075, 0);
+  part(g, new THREE.TorusGeometry(0.04, 0.003, 6, 16), solid(0xc8a46a, 0.8), 0, 0.01, 0).rotation.x = Math.PI / 2;
+  part(g, new THREE.CircleGeometry(0.055, 14), paper, 0, 0.14, 0).rotation.x = -Math.PI / 2;
+  return g;
+}
+
 /** Per-model build options; only the rocket reads them today. */
 interface ModelOptions {
   /** Whether the rocket stands in its green glass bottle; defaults to true. */
@@ -289,6 +299,7 @@ const BUILDERS: Record<CrackerKind, (opts: ModelOptions) => THREE.Group> = {
   ladi,
   saanp,
   skyshot,
+  kandil,
 };
 
 /**

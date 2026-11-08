@@ -3,15 +3,16 @@
 // under Node and is unit tested.
 import { CRACKER_ORDER, CRACKERS, type CrackerKind } from '../crackers/catalog';
 
-/** Number of hotbar slots, one per cracker kind in CRACKER_ORDER. */
+/** Number of hotbar slots, one per kind in CRACKER_ORDER: ten crackers and the sky lantern. */
 export const SLOT_COUNT = CRACKER_ORDER.length;
 
 /**
- * Maps a physical key code to a hotbar slot index: Digit1 to Digit9 give slots 0 to 8 and Digit0 gives slot 9.
- * Returns null for any other code.
+ * Maps a physical key code to a hotbar slot index: Digit1 to Digit9 give slots 0 to 8, Digit0 gives slot 9 and the
+ * minus key gives slot 10 (the sky lantern). Returns null for any other code.
  */
 export function slotIndexForKey(code: string): number | null {
   if (code === 'Digit0') return 9;
+  if (code === 'Minus') return 10;
   const m = /^Digit([1-9])$/.exec(code);
   return m ? Number(m[1]) - 1 : null;
 }
@@ -35,7 +36,7 @@ export class Inventory {
     return CRACKER_ORDER[this.index];
   }
 
-  /** Index of the selected kind in CRACKER_ORDER, 0 to 9. */
+  /** Index of the selected kind in CRACKER_ORDER, 0 to 10. */
   get selectedIndex(): number {
     return this.index;
   }

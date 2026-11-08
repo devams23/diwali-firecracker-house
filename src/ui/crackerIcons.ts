@@ -242,6 +242,48 @@ const paintSkyshot: Painter = (g, tint) => {
   g.fill();
 };
 
+/** Akash Kandil: a glowing paper sky lantern, wider at the shoulder and narrowing to a bamboo ring with a small flame. */
+const paintKandil: Painter = (g, tint) => {
+  // Soft warm halo behind the lantern.
+  const halo = g.createRadialGradient(50, 50, 6, 50, 50, 46);
+  halo.addColorStop(0, 'rgba(255,190,90,0.55)');
+  halo.addColorStop(1, 'rgba(255,190,90,0)');
+  g.fillStyle = halo;
+  g.fillRect(0, 0, 100, 100);
+  // The paper body: a rounded drum tapering to the base.
+  const body = g.createLinearGradient(0, 18, 0, 78);
+  body.addColorStop(0, '#ffd89a');
+  body.addColorStop(1, tint);
+  g.fillStyle = body;
+  g.beginPath();
+  g.moveTo(34, 78);
+  g.lineTo(26, 40);
+  g.quadraticCurveTo(26, 16, 50, 15);
+  g.quadraticCurveTo(74, 16, 74, 40);
+  g.lineTo(66, 78);
+  g.closePath();
+  g.fill();
+  // Paper ribs.
+  g.strokeStyle = 'rgba(120,50,10,0.45)';
+  g.lineWidth = 1.2;
+  for (const dx of [-12, 0, 12]) {
+    g.beginPath();
+    g.moveTo(50 + dx * 0.55, 16);
+    g.quadraticCurveTo(50 + dx * 1.5, 46, 50 + dx * 0.7, 78);
+    g.stroke();
+  }
+  // Bamboo ring at the mouth and the flame inside it.
+  g.strokeStyle = BAMBOO;
+  g.lineWidth = 3;
+  g.beginPath();
+  g.ellipse(50, 79, 17, 4, 0, 0, Math.PI * 2);
+  g.stroke();
+  g.fillStyle = GOLD;
+  g.beginPath();
+  g.ellipse(50, 70, 3.2, 6, 0, 0, Math.PI * 2);
+  g.fill();
+};
+
 /** One painter per kind, so adding a kind to the catalogue makes the compiler ask for its icon here too. */
 const PAINTERS: Record<CrackerKind, Painter> = {
   phuljhadi: paintPhuljhadi,
@@ -254,6 +296,7 @@ const PAINTERS: Record<CrackerKind, Painter> = {
   ladi: paintLadi,
   saanp: paintSaanp,
   skyshot: paintSkyshot,
+  kandil: paintKandil,
 };
 
 /**

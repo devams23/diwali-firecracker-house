@@ -48,6 +48,7 @@ import { Finale, FinaleCounter, countsTowardFinale } from './ui/Finale';
 import { Toast } from './ui/Toast';
 import { DiyaCounter } from './ui/DiyaCounter';
 import { DiyaRow, DIYA_COUNT } from './features/DiyaRow';
+import { SkyLanterns, heldLanternSpot } from './features/SkyLantern';
 import { PhotoMode } from './ui/PhotoMode';
 import { debugRequested, installDebugHook } from './debugHook';
 
@@ -73,6 +74,9 @@ const STARTER_PACK: [CrackerKind, number][] = [
   ['chakri', 2],
   ['rocket', 2],
 ];
+/** Direction the night breeze carries sky lanterns, in radians on the ground plane (x toward z), and its random spread. */
+const LANTERN_BREEZE_HEADING = -1.0;
+const LANTERN_BREEZE_SPREAD = 0.6;
 /** Seconds the "Step back!" prompt stays after a cracker is lit on the ground. */
 const STEP_BACK_SECONDS = 2;
 /** Radius, in metres, around the agarbatti tip within which a ground fuse can be lit. */
@@ -154,9 +158,13 @@ export class Game {
   /** The row of unlit diyas the player lights with the agarbatti, and the "दीप n / 11" plaque that counts them. */
   private readonly diyaRow: DiyaRow;
   private readonly diyaCounter: DiyaCounter;
+  /** Sky lanterns released with F, rising into the night. */
+  private readonly lanterns = new SkyLanterns();
   private readonly hotbar: Hotbar;
   private readonly tmpDir = new THREE.Vector3();
   private readonly tmpForward = new THREE.Vector3();
+  /** Scratch point where a sky lantern is held up before it is released. */
+  private readonly lanternSpot = new THREE.Vector3();
   private readonly finaleAt = new THREE.Vector3();
   /** Plays a far bang once its delay has passed; a field so the per-frame drain does not allocate a closure. */
   private readonly playFar = (e: FarBang): void => {
@@ -279,7 +287,9 @@ export class Game {
     this.diyaRow = new DiyaRow(this.fx);
     scene.add(this.diyaRow.object);
     this.engine.add(this.diyaRow);
-    this.diyaRow.onLit = (lit, total) => this.diyaCounter.set(lit, total);
+    scene.add(this.lanterns.object);
+    this.engine.add(this.lanterns);
+    this.diyaRow.onLit =(lit, total) => this.diyaCounter.set(lit, total);
     this.diyaRow.onComplete = () => this.toast.show('शुभ दीपावली · Shubh Deepavali', 6);
     this.finale = new Finale(uiEl);
     this.pause = new Pause(uiEl, {
@@ -315,6 +325,7 @@ export class Game {
         place: (kind) => this.debugPlace(kind),
         lightAll: () => this.debugLightAll(),
         lightDiyas: (n) => this.debugLightDiyas(n),
+        releaseLantern: () => this.releaseLantern(),
         teleport: (x, z, yaw, pitch) => this.debugTeleport(x, z, yaw, pitch),
         state: () => ({ ...this.state }),
         heldShot: () => this.debugHeldShot(),
@@ -566,10 +577,29 @@ export class Game {
       return;
     }
 
+    // A sky lantern is lit in front of the player and lets go to rise, rather than standing on the ground.
+    if (kind === 'kandil') {
+      this.inventory.take(kind);
+      this.releaseLantern();
+      return;
+    }
+
     this.inventory.take(kind);
     this.player.forward(this.tmpForward);
     const spot = placementFor(this.engine.camera.position, this.lookDir(this.tmpDir), this.tmpForward);
     this.addGround(kind, spot);
+  }
+
+  /**
+   * Lights an Akash Kandil held up in front of the player. It hangs there while its flame catches, then rises on a
+   * breeze blowing toward the east and the far side of the village; a toast invites a wish.
+   */
+  private releaseLantern(): void {
+    this.player.forward(this.tmpForward);
+    const spot = heldLanternSpot(this.engine.camera.position, this.tmpForward, this.lanternSpot);
+    this.lanterns.release(spot, LANTERN_BREEZE_HEADING + (Math.random() - 0.5) * LANTERN_BREEZE_SPREAD);
+    this.audio.play('chime', spot, { pitch: 0.75, volume: 0.6 });
+    this.toast.show('Make a wish · मनोकामना', 4);
   }
 
   /** Clears the left hand when a sparkler burns out and counts it toward the finale. */
