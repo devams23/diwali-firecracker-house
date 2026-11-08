@@ -1,12 +1,10 @@
-// Night sky and horizon: a gradient dome, twinkling stars, a hazy moon, neighbouring house silhouettes
-// with warm windows, a distant shikhara with one lamp, dark fields, and a festival sky of distant fireworks.
+// Night sky and horizon: a gradient dome, twinkling stars, a glowing moon, dusky fields, and a festival sky of distant fireworks.
 // Each rocket climbs from the fields with a glowing trail, bursts high over the village in a peony, willow
 // or ring shape, and sometimes fires in pairs. Bursts use their own small pool, separate from the main spark
 // system, and report each one through `onFarBurst` (at the moment it opens) so audio can be scheduled with the
 // sound's travel delay.
 import * as THREE from 'three';
 import type { Updatable } from '../core/Engine';
-import { PALETTE } from '../core/palette';
 import { viewport } from '../core/viewport';
 import { rng } from './textures';
 import { MOON_DIRECTION } from './Lighting';
@@ -15,16 +13,6 @@ const DOME_R = 340;
 const STAR_R = 330;
 const STAR_COUNT = 1500;
 const MOON_R = 320;
-const HOUSE_COUNT = 14;
-/** Half-angle of the open southern approach, in radians, where no neighbour houses are placed. */
-const SOUTH_GAP = 0.5;
-const SHIKHARA_DIST = 80;
-const SHIKHARA_H = 30;
-/** Spire radius at height y above its base; the lathe profile and the lamp placement both use it. */
-function spireRadius(y: number): number {
-  const f = 1 - y / SHIKHARA_H;
-  return 5.5 * Math.pow(f, 1.7) + 0.5;
-}
 const SOUND_SPEED = 343;
 /** Rockets that can be climbing or bursting at the same time. */
 /** Shells that can be climbing or bursting at the same time; a salvo of six needs room for all of them. */
@@ -204,26 +192,6 @@ function moonTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(canvas);
 }
 
-/** Triangular-section roof with its ridge along z, used for the silhouette houses. */
-function gableRoof(w: number, h: number, d: number): THREE.BufferGeometry {
-  const hw = w / 2;
-  const hd = d / 2;
-  const v = [
-    // Two sloped pitches, each a quad as two triangles.
-    -hw, 0, -hd, -hw, 0, hd, 0, h, hd,
-    -hw, 0, -hd, 0, h, hd, 0, h, -hd,
-    hw, 0, -hd, 0, h, -hd, 0, h, hd,
-    hw, 0, -hd, 0, h, hd, hw, 0, hd,
-    // Gable ends at each z face.
-    -hw, 0, hd, hw, 0, hd, 0, h, hd,
-    -hw, 0, -hd, 0, h, -hd, hw, 0, -hd,
-  ];
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
-  g.computeVertexNormals();
-  return g;
-}
-
 /**
  * A soft round sprite for the burst particles: a bright core fading to nothing at the edge, so each spark reads as a
  * point of light rather than a square.
@@ -283,8 +251,6 @@ export class Sky implements Updatable {
 
     this.stars = this.buildStars(scene);
     this.buildMoon(scene);
-    this.buildHorizon(scene);
-    this.buildShikhara(scene);
     this.buildFields(scene);
     this.burstPosAttr = new THREE.BufferAttribute(this.burstPos, 3);
     this.burstColAttr = new THREE.BufferAttribute(this.burstCol, 3);
@@ -377,127 +343,19 @@ export class Sky implements Updatable {
     scene.add(moon);
   }
 
-  /** Dark neighbouring houses at 25 to 60 m, with a few warm windows each facing the courtyard. */
-  private buildHorizon(scene: THREE.Scene): void {
-    const r = rng(777);
-    const silhouette = new THREE.MeshBasicMaterial({
-      color: 0x15121d,
-      side: THREE.DoubleSide,
-      fog: false,
-    });
-    const windowPos: number[] = [];
-    for (let i = 0; i < HOUSE_COUNT; i++) {
-      const a = (i / HOUSE_COUNT) * Math.PI * 2 + (r() - 0.5) * 0.35;
-      // Leave the southern approach open: the gate looks out onto fields, not houses.
-      if (-Math.cos(a) > Math.cos(SOUTH_GAP)) continue;
-      const dist = 25 + r() * 35;
-      // Outward unit vector: a = 0 is north (-z), a = PI/2 is east (+x).
-      const ux = Math.sin(a);
-      const uz = -Math.cos(a);
-      const w = 6 + r() * 3;
-      const d = 5 + r() * 2;
-      const wallH = 3 + r() * 1.5;
-      const roofH = 1.8 + r() * 0.6;
-      const cx = ux * dist;
-      const cz = uz * dist;
-
-      const walls = new THREE.Mesh(new THREE.BoxGeometry(w, wallH, d), silhouette);
-      walls.position.set(cx, wallH / 2, cz);
-      scene.add(walls);
-      const roof = new THREE.Mesh(gableRoof(w, roofH, d), silhouette);
-      roof.position.set(cx, wallH, cz);
-      scene.add(roof);
-
-      // Windows sit on the face nearest the courtyard, the axis that points most toward the origin.
-      const windows = 2 + Math.floor(r() * 3);
-      for (let k = 0; k < windows; k++) {
-        const t = r() * 2 - 1;
-        const y = wallH * (0.3 + 0.5 * r());
-        if (Math.abs(ux) > Math.abs(uz)) {
-          windowPos.push(cx - Math.sign(ux) * (w / 2 + 0.02), y, cz + t * d * 0.4);
-        } else {
-          windowPos.push(cx + t * w * 0.4, y, cz - Math.sign(uz) * (d / 2 + 0.02));
-        }
-      }
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(windowPos, 3));
-    scene.add(
-      new THREE.Points(
-        geo,
-        new THREE.PointsMaterial({
-          color: PALETTE.flame,
-          size: 0.28,
-          sizeAttenuation: true,
-          transparent: true,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-          fog: false,
-        }),
-      ),
-    );
-  }
-
-  /** A temple shikhara on a plinth at 80 m north-east, with one lamp in its niche. */
-  private buildShikhara(scene: THREE.Scene): void {
-    const a = Math.PI / 4;
-    const cx = Math.sin(a) * SHIKHARA_DIST;
-    const cz = -Math.cos(a) * SHIKHARA_DIST;
-    const mat = new THREE.MeshBasicMaterial({ color: 0x17151f, fog: false });
-
-    // Plinth, then the tapering spire revolved from a curved profile.
-    const plinth = new THREE.Mesh(new THREE.BoxGeometry(14, 4, 14), mat);
-    plinth.position.set(cx, 2, cz);
-    scene.add(plinth);
-
-    const profile: THREE.Vector2[] = [];
-    for (let k = 0; k <= 12; k++) {
-      const y = (SHIKHARA_H * k) / 12;
-      profile.push(new THREE.Vector2(spireRadius(y), y));
-    }
-    profile.push(new THREE.Vector2(0.35, SHIKHARA_H + 1.2), new THREE.Vector2(0, SHIKHARA_H + 2.4));
-    const spire = new THREE.Mesh(new THREE.LatheGeometry(profile, 24), mat);
-    spire.position.set(cx, 4, cz);
-    scene.add(spire);
-
-    // The lone lamp sits on the spire surface facing the village, pushed out from the axis by the spire
-    // radius at its height plus a margin, so the opaque spire does not hide it from the aangan.
-    const lampY = 14;
-    const lampR = spireRadius(lampY) + 0.3;
-    const dist = Math.hypot(cx, cz);
-    const lx = cx - (cx / dist) * lampR;
-    const lz = cz - (cz / dist) * lampR;
-    const lamp = new THREE.Points(
-      new THREE.BufferGeometry().setAttribute(
-        'position',
-        new THREE.Float32BufferAttribute([lx, 4 + lampY, lz], 3),
-      ),
-      new THREE.PointsMaterial({
-        color: PALETTE.flame,
-        size: 1.0,
-        sizeAttenuation: true,
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        fog: false,
-      }),
-    );
-    scene.add(lamp);
-  }
-
   /** Flat dark fields past the village edge: one large ground disc with a few darker plots. */
   private buildFields(scene: THREE.Scene): void {
     const r = rng(9001);
     const ground = new THREE.Mesh(
       new THREE.CircleGeometry(300, 48),
-      new THREE.MeshBasicMaterial({ color: 0x0c0e0b, fog: false }),
+      new THREE.MeshBasicMaterial({ color: 0x2b2440, fog: false }),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.06;
     scene.add(ground);
 
     // Plots sit just above the disc so their depth does not fight it at distance.
-    const plotColors = [0x111710, 0x16130c];
+    const plotColors = [0x30283f, 0x2a2a34];
     for (let i = 0; i < 8; i++) {
       const a = r() * Math.PI * 2;
       const dist = 40 + r() * 110;

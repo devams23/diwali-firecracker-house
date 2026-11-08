@@ -3,6 +3,7 @@
 // pass makes it glow. No lights are added; the glow is emissive only, and the lanterns sway a little in the breeze.
 import * as THREE from 'three';
 import type { Updatable } from '../core/Engine';
+import { postAnchor, wallBays } from './Aangan';
 
 /** Where one lantern hangs: the point its cord is tied to, and its paper colour. */
 export interface KandilSpot {
@@ -95,4 +96,13 @@ export function verandahKandilSpots(postX: readonly number[]): KandilSpot[] {
     });
   }
   return spots;
+}
+
+/** Lanterns hung at the middle of every bay of the boundary wall, below the upper jhalar swag. */
+export function wallKandilSpots(): KandilSpot[] {
+  return wallBays().map(([a, b], i) => {
+    const mid = postAnchor(a).add(postAnchor(b)).multiplyScalar(0.5);
+    mid.y = 2.0;
+    return { anchor: mid, color: KANDIL_COLORS[(i + 2) % KANDIL_COLORS.length], drop: 0.3 };
+  });
 }

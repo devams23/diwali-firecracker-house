@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { PALETTE } from '../core/palette';
 import type { CollisionWorld } from '../core/Collision';
 import { CLAY } from '../items/Diya';
-import { DIYA_SPACING, FACE_CLEARANCE, GATE_HALF, INNER_X, SOUTH_INNER_Z, WALL_H, WALL_T, jitteredBox, plasterMaterial, woodMaterial } from './Aangan';
+import { DIYA_SPACING, FACE_CLEARANCE, GATE_HALF, INNER_X, SOUTH_INNER_Z, jitteredBox, plasterMaterial, woodMaterial, wallTopSpots } from './Aangan';
 import type { HouseAnchors } from './House';
 import { buildStall, type StallBox } from './Stall';
 import { rng, tile, type Textures } from './textures';
@@ -196,26 +196,16 @@ export function buildProps(
  * existing wall-top spots, and a floor row just inside the south wall. Lit diyas are not included.
  */
 export function extraDiyaSpots(): THREE.Vector3[] {
-  const out: THREE.Vector3[] = [];
-  const topY = WALL_H + 0.12;
-  const sideX = INNER_X + WALL_T / 2;
-  const southZ = SOUTH_INNER_Z + WALL_T / 2;
-  // Side walls: a half-spacing offset from the existing row, so the two rows interleave.
-  for (let i = 0; i < 12; i++) {
-    const z = -6.0 + i * DIYA_SPACING;
-    out.push(new THREE.Vector3(sideX, topY, z), new THREE.Vector3(-sideX, topY, z));
+  // Wall tops: a half-spacing offset from the main row, so the two rows interleave.
+  const out: THREE.Vector3[] = wallTopSpots(DIYA_SPACING / 2);
+  // Floor row just inside the south wall, on the beaten earth, and a second row in front of the house plinth.
+  for (let x = -INNER_X + 0.6; x < INNER_X - 0.4; x += DIYA_SPACING) {
+    if (Math.abs(x) < GATE_HALF + 0.9) continue;
+    out.push(new THREE.Vector3(x, 0, SOUTH_INNER_Z - 0.7));
   }
-  // South wall: the staggered row, skipping the gate like the original row does.
-  for (let i = 0; i < 14; i++) {
-    const x = -7.8 + i * DIYA_SPACING;
-    if (Math.abs(x) < GATE_HALF + 0.6) continue;
-    out.push(new THREE.Vector3(x, topY, southZ));
-  }
-  // Floor row just inside the south wall, on the beaten earth.
-  for (let i = 0; i < 15; i++) {
-    const x = -8.4 + i * DIYA_SPACING;
-    if (Math.abs(x) < GATE_HALF + 0.6) continue;
-    out.push(new THREE.Vector3(x, 0, 6.3));
+  for (let x = -INNER_X + 0.6; x < INNER_X - 0.4; x += DIYA_SPACING * 1.5) {
+    if (Math.abs(x) < 7) continue;
+    out.push(new THREE.Vector3(x, 0, -7.6));
   }
   return out;
 }

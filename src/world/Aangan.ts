@@ -5,14 +5,21 @@ import * as THREE from 'three';
 import type { CollisionWorld } from '../core/Collision';
 import { tile, type Textures } from './textures';
 
-export const WALL_H = 2.0;
+/** Boundary parapet height: low enough (eye is 1.6 m) that the player sees over it into the village. */
+export const WALL_H = 1.15;
+/** Height of the gate pillars and the wall pilasters that carry the jhalar. */
+export const POST_H = 2.7;
 export const WALL_T = 0.35;
 /** Inner face of the east and west walls (metres from the centre line). */
-export const INNER_X = 9;
+export const INNER_X = 13;
 /** Inner face of the south (gate) wall. */
-export const SOUTH_INNER_Z = 7;
+export const SOUTH_INNER_Z = 12;
 /** The side walls run up to the house front, so the house closes the courtyard on the north. */
-const NORTH_Z = -8.6;
+export const NORTH_Z = -8.6;
+/** Half-width of the house body; the north return walls run from here out to the side walls. */
+const HOUSE_HALF = 9;
+/** Spacing of the wall pilasters along the boundary, in metres. */
+export const POST_SPACING = 4;
 const OUTER_Z = SOUTH_INNER_Z + WALL_T;
 export const GATE_HALF = 0.8;
 /** Max displacement of a wall face in metres; enough to read as hand-built, not visible as a bug. */
@@ -129,7 +136,7 @@ function addWall(scene: THREE.Scene, tex: Textures, s: Span, coping: boolean): v
     const long = w >= d;
     for (const [band, y, bandH] of [
       [BAND_INDIGO, s.minY + 0.24, 0.16],
-      [BAND_SAFFRON, s.maxY - 0.2, 0.12],
+      [BAND_SAFFRON, s.maxY - 0.12, 0.1],
     ] as const) {
       const strip = new THREE.Mesh(
         new THREE.BoxGeometry(long ? w + 0.02 : w + 0.08, bandH, long ? d + 0.08 : d + 0.02),
@@ -161,19 +168,19 @@ function addNiche(
     new THREE.PlaneGeometry(0.38, 0.5),
     new THREE.MeshStandardMaterial({ color: 0x2a1a10, roughness: 0.95, metalness: 0 }),
   );
-  recess.position.set(faceX + inward * FACE_CLEARANCE, 1.15, z);
+  recess.position.set(faceX + inward * FACE_CLEARANCE, 0.62, z);
   recess.rotation.y = (inward * Math.PI) / 2;
   scene.add(recess);
 
   // Sill and lintel frame the opening so it reads as cut into the mud.
   const sill = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.46), mat);
-  sill.position.set(faceX + inward * 0.05, 0.885, z);
+  sill.position.set(faceX + inward * 0.05, 0.36, z);
   scene.add(sill);
   const lintel = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.06, 0.46), mat);
-  lintel.position.set(faceX + inward * 0.05, 1.43, z);
+  lintel.position.set(faceX + inward * 0.05, 0.89, z);
   scene.add(lintel);
 
-  return new THREE.Vector3(faceX + inward * 0.09, 0.93, z);
+  return new THREE.Vector3(faceX + inward * 0.09, 0.41, z);
 }
 
 /** Adds one wooden gate leaf hinged at `hingeX`, swung open by `swing` radians (outward). */
@@ -210,82 +217,160 @@ export function buildAangan(
   // Ground: beaten earth over a 60 m plot; the repeat keeps the mottling fine up close. A clone
   // carries its own repeat, so the shared earth texture is left untouched for other surfaces.
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(60, 60),
-    new THREE.MeshStandardMaterial({ map: tile(tex.earth, 12, 12), roughness: 0.95, metalness: 0 }),
+    new THREE.PlaneGeometry(160, 160),
+    new THREE.MeshStandardMaterial({ map: tile(tex.earth, 32, 32), roughness: 0.95, metalness: 0 }),
   );
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
 
-  // Walls: east, west and south (split around the gate). Each is also a collision box.
+  // Walls: east and west, the two short returns beside the house, and the south wall split around the gate.
+  // They are low parapets, so the player sees over them into the village. Each is also a collision box.
+  const topNorth = NORTH_Z - WALL_T;
+  const span = (minX: number, maxX: number, minZ: number, maxZ: number, maxY = WALL_H): Span => ({
+    minX,
+    maxX,
+    minY: 0,
+    maxY,
+    minZ,
+    maxZ,
+  });
+  const pillarX = GATE_HALF + 0.4;
   const spans: Span[] = [
-    { minX: INNER_X, maxX: INNER_X + WALL_T, minY: 0, maxY: WALL_H, minZ: NORTH_Z, maxZ: OUTER_Z },
-    {
-      minX: -INNER_X - WALL_T,
-      maxX: -INNER_X,
-      minY: 0,
-      maxY: WALL_H,
-      minZ: NORTH_Z,
-      maxZ: OUTER_Z,
-    },
-    {
-      minX: -INNER_X - WALL_T,
-      maxX: -GATE_HALF,
-      minY: 0,
-      maxY: WALL_H,
-      minZ: SOUTH_INNER_Z,
-      maxZ: OUTER_Z,
-    },
-    {
-      minX: GATE_HALF,
-      maxX: INNER_X + WALL_T,
-      minY: 0,
-      maxY: WALL_H,
-      minZ: SOUTH_INNER_Z,
-      maxZ: OUTER_Z,
-    },
+    span(INNER_X, INNER_X + WALL_T, topNorth, OUTER_Z),
+    span(-INNER_X - WALL_T, -INNER_X, topNorth, OUTER_Z),
+    span(HOUSE_HALF, INNER_X, topNorth, NORTH_Z),
+    span(-INNER_X, -HOUSE_HALF, topNorth, NORTH_Z),
+    span(-INNER_X - WALL_T, -pillarX, SOUTH_INNER_Z, OUTER_Z),
+    span(pillarX, INNER_X + WALL_T, SOUTH_INNER_Z, OUTER_Z),
   ];
   for (const s of spans) {
     addWall(scene, tex, s, true);
     world.addBox({ minX: s.minX, maxX: s.maxX, minZ: s.minZ, maxZ: s.maxZ });
   }
 
-  // Gate: a 1.6 m opening with a lintel above it. The opening stays visibly open; a blocker across
+  // Gate: two tall pillars carry a lintel over a 1.6 m opening. The opening stays visibly open; a blocker across
   // its depth, starting 0.1 m inside the courtyard face, keeps the player in the courtyard.
   const gateMat = woodMaterial(tex, 1.5, 1);
+  for (const side of [-1, 1]) {
+    const x0 = side * GATE_HALF;
+    const x1 = side * pillarX;
+    addWall(
+      scene,
+      tex,
+      span(Math.min(x0, x1), Math.max(x0, x1), SOUTH_INNER_Z, OUTER_Z, POST_H),
+      true,
+    );
+  }
   addWall(
     scene,
     tex,
-    { minX: -GATE_HALF, maxX: GATE_HALF, minY: 1.8, maxY: WALL_H, minZ: SOUTH_INNER_Z, maxZ: OUTER_Z },
+    { minX: -pillarX, maxX: pillarX, minY: POST_H - 0.4, maxY: POST_H, minZ: SOUTH_INNER_Z, maxZ: OUTER_Z },
     false,
   );
   addGateLeaf(scene, gateMat, -GATE_HALF, 1, -1.2);
   addGateLeaf(scene, gateMat, GATE_HALF, -1, 1.2);
-  world.addBox({ minX: -GATE_HALF, maxX: GATE_HALF, minZ: 7.1, maxZ: OUTER_Z });
+  world.addBox({ minX: -GATE_HALF, maxX: GATE_HALF, minZ: SOUTH_INNER_Z + 0.1, maxZ: OUTER_Z });
 
-  // Niches: six per side wall, evenly spaced, each with a diya spot.
+  // Pilasters along the boundary carry the jhalar swags and the lanterns; each wears a glowing finial.
+  const postMat = plasterMaterial(tex, 1);
+  for (const p of wallPosts()) addPost(scene, postMat, p);
+
+  // Niches: six per side wall, evenly spaced between the pilasters, each with a diya spot.
   const diyaSpots: THREE.Vector3[] = [];
   const niche = plasterMaterial(tex, 1);
   for (let i = 0; i < NICHES_PER_WALL; i++) {
-    const z = -5.5 + i * 2.2;
+    const z = -6 + i * 2.4;
     diyaSpots.push(addNiche(scene, niche, INNER_X, -1, z));
     diyaSpots.push(addNiche(scene, niche, -INNER_X, 1, z));
   }
 
-  // Diyas along the wall tops every 1.2 m; the south wall skips the gate.
-  const topY = WALL_H + 0.12;
-  const sideX = INNER_X + WALL_T / 2;
-  for (let i = 0; i < 12; i++) {
-    const z = -6.6 + i * DIYA_SPACING;
-    diyaSpots.push(new THREE.Vector3(sideX, topY, z));
-    diyaSpots.push(new THREE.Vector3(-sideX, topY, z));
-  }
-  const southZ = SOUTH_INNER_Z + WALL_T / 2;
-  for (let i = 0; i < 15; i++) {
-    const x = -8.4 + i * DIYA_SPACING;
-    if (Math.abs(x) < GATE_HALF + 0.6) continue;
-    diyaSpots.push(new THREE.Vector3(x, topY, southZ));
-  }
+  // Diyas along the wall tops every 1.2 m, clear of the pilasters; the south wall skips the gate.
+  diyaSpots.push(...wallTopSpots(0));
 
   return { diyaSpots };
 }
 
+/** Centre of a pilaster on the boundary, in world x and z. */
+export interface WallPost {
+  x: number;
+  z: number;
+  /** Which wall it stands on: the side it faces inward from, used to offset anchors into the courtyard. */
+  wall: 'east' | 'west' | 'south';
+}
+
+/** Z of the side-wall pilasters (the last one stands at the south corner). */
+const SIDE_POST_Z = [-7.2, -2.4, 2.4, 7.2, SOUTH_INNER_Z - 0.2];
+/** X of the south-wall pilasters on the east half; the west half mirrors it, and the gate pillars stand inside these. */
+const SOUTH_POST_X = [INNER_X - 0.2, 8.4, 4.6];
+
+/** Every boundary pilaster, ordered along each wall from the house toward the gate. */
+export function wallPosts(): WallPost[] {
+  const out: WallPost[] = [];
+  const sideX = INNER_X + WALL_T / 2;
+  for (const z of SIDE_POST_Z) {
+    out.push({ x: sideX, z, wall: 'east' }, { x: -sideX, z, wall: 'west' });
+  }
+  const southZ = SOUTH_INNER_Z + WALL_T / 2;
+  for (const x of SOUTH_POST_X) out.push({ x, z: southZ, wall: 'south' }, { x: -x, z: southZ, wall: 'south' });
+  return out;
+}
+
+/** Every bay between two neighbouring pilasters on the same wall, so strings and lanterns follow the same spans; none crosses the gate. */
+export function wallBays(): [WallPost, WallPost][] {
+  const posts = wallPosts();
+  const bays: [WallPost, WallPost][] = [];
+  for (const wall of ['east', 'west', 'south'] as const) {
+    const side = posts.filter((p) => p.wall === wall);
+    // The south posts run by x, the side walls by z, so each wall is walked from one end to the other.
+    side.sort((a, b) => (wall === 'south' ? a.x - b.x : a.z - b.z));
+    for (let k = 0; k < side.length - 1; k++) {
+      // The two south posts nearest the gate stand on opposite sides of the opening; no bay crosses it.
+      if (wall === 'south' && side[k].x < 0 && side[k + 1].x > 0) continue;
+      bays.push([side[k], side[k + 1]]);
+    }
+  }
+  return bays;
+}
+
+/** Top of a pilaster pulled 0.25 m into the courtyard, where the jhalar swags tie on. */
+export function postAnchor(p: WallPost, y = POST_H - 0.15): THREE.Vector3 {
+  const inset = WALL_T / 2 + 0.1;
+  if (p.wall === 'east') return new THREE.Vector3(p.x - inset, y, p.z);
+  if (p.wall === 'west') return new THREE.Vector3(p.x + inset, y, p.z);
+  return new THREE.Vector3(p.x, y, p.z - inset);
+}
+
+/** A square pilaster with a lime cap and a glowing saffron finial. */
+function addPost(scene: THREE.Scene, mat: THREE.Material, p: WallPost): void {
+  const w = WALL_T + 0.14;
+  const post = new THREE.Mesh(new THREE.BoxGeometry(w, POST_H, w), mat);
+  post.position.set(p.x, POST_H / 2, p.z);
+  scene.add(post);
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(w + 0.1, 0.08, w + 0.1), mat);
+  cap.position.set(p.x, POST_H + 0.04, p.z);
+  scene.add(cap);
+  const finial = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), BAND_SAFFRON);
+  finial.position.set(p.x, POST_H + 0.17, p.z);
+  scene.add(finial);
+}
+
+/**
+ * Diya spots along the wall tops, every DIYA_SPACING metres and shifted by `offset` metres so a second call with a
+ * half-spacing offset interleaves with the first. Spots within 0.4 m of a pilaster or beside the gate are skipped.
+ */
+export function wallTopSpots(offset: number): THREE.Vector3[] {
+  const out: THREE.Vector3[] = [];
+  const topY = WALL_H + 0.12;
+  const sideX = INNER_X + WALL_T / 2;
+  for (let z = -8 + offset; z < SOUTH_INNER_Z - 0.5; z += DIYA_SPACING) {
+    if (SIDE_POST_Z.some((pz) => Math.abs(pz - z) < 0.4)) continue;
+    out.push(new THREE.Vector3(sideX, topY, z), new THREE.Vector3(-sideX, topY, z));
+  }
+  const southZ = SOUTH_INNER_Z + WALL_T / 2;
+  for (let x = -INNER_X + 0.4 + offset; x < INNER_X - 0.3; x += DIYA_SPACING) {
+    if (Math.abs(x) < GATE_HALF + 0.9) continue;
+    if (SOUTH_POST_X.some((px) => Math.abs(Math.abs(x) - px) < 0.4)) continue;
+    out.push(new THREE.Vector3(x, topY, southZ));
+  }
+  return out;
+}

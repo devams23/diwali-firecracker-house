@@ -19,6 +19,9 @@ import { buildProps, extraDiyaSpots, type PropsResult } from './world/props';
 import { buildLighting } from './world/Lighting';
 import { Sky } from './world/Sky';
 import { Festoons } from './world/Festoons';
+import { Village } from './world/Village';
+import { Kandils, verandahKandilSpots, wallKandilSpots } from './world/Kandils';
+import { POST_X } from './world/House';
 import { Diya, DiyaField } from './items/Diya';
 import { Inventory, slotIndexForKey } from './items/Inventory';
 import { Agarbatti } from './items/Agarbatti';
@@ -84,9 +87,9 @@ const FINALE_NEAR = 50;
 /** Extra random distance added to FINALE_NEAR, in metres. */
 const FINALE_SPREAD = 40;
 /** Lowest height of a neighbour's burst, in metres. */
-const FINALE_HEIGHT_MIN = 30;
+const FINALE_HEIGHT_MIN = 45;
 /** Extra random height added to FINALE_HEIGHT_MIN, in metres. */
-const FINALE_HEIGHT_RANGE = 15;
+const FINALE_HEIGHT_RANGE = 25;
 /** Burst shapes the finale draws from. */
 const FINALE_STYLES: BurstStyle[] = ['peony', 'willow', 'crackle', 'ring'];
 const TAU = Math.PI * 2;
@@ -193,6 +196,10 @@ export class Game {
     this.sky = new Sky(scene);
     this.engine.add(this.sky);
     this.engine.add(new Festoons(scene));
+    // The neighbouring village beyond the low boundary wall: houses, lanes, lamps and eave lights.
+    this.engine.add(new Village(scene));
+    // Paper akash kandils hang under the verandah eave and glow through the bloom pass.
+    this.engine.add(new Kandils(scene, [...verandahKandilSpots(POST_X), ...wallKandilSpots()]));
 
     // Five real lit lamps: the tulsi diya (decoration only now), two at the door and two in the aangan niches.
     const tulsi = new Diya(this.props.tulsiDiyaPos, { light: true });
@@ -579,7 +586,7 @@ export class Game {
     this.finaleAt.set(Math.sin(a) * dist, height, -Math.cos(a) * dist);
     const palette = SKY_PALETTES[Math.floor(Math.random() * SKY_PALETTES.length)];
     const style = FINALE_STYLES[Math.floor(Math.random() * FINALE_STYLES.length)];
-    aerialBurst(this.fx, this.finaleAt, style, palette);
+    aerialBurst(this.fx, this.finaleAt, style, palette, { scale: 1.4, multiBreak: Math.random() < 0.35 });
   }
 
   /**

@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import type { Updatable } from '../core/Engine';
 import { POST_X } from './House';
-import { GATE_HALF, SOUTH_INNER_Z } from './Aangan';
+import { GATE_HALF, POST_H, SOUTH_INNER_Z, postAnchor, wallBays } from './Aangan';
 
 /** Seconds each light pattern runs before the next one takes over. */
 const PATTERN_SECONDS = 20;
@@ -29,6 +29,8 @@ const JHALAR_Z = -6.72;
 const GARLAND_Z = -6.9;
 /** Z of the courtyard jhalar and the gate arch, on the inner side of the south wall. */
 const COURTYARD_Z = SOUTH_INNER_Z - 0.2;
+/** X of the south pilaster nearest the gate, as placed in Aangan.ts. */
+const SOUTH_POST_NEAR_X = 4.6;
 /** Number of distinct bulb colours in BULB_COLORS. */
 const COLOR_COUNT = BULB_COLORS.length;
 
@@ -71,11 +73,18 @@ function jhalarStrands(): THREE.Vector3[][] {
   // Roof edge: a taut line along the front eave and a drooping one just under it, so the whole roofline is outlined.
   strands.push(sampleSwag(new THREE.Vector3(-9.6, 2.68, -6.78), new THREE.Vector3(9.6, 2.68, -6.78), 0.05, BULB_SPACING));
   strands.push(sampleSwag(new THREE.Vector3(-9.6, 2.5, -6.78), new THREE.Vector3(9.6, 2.5, -6.78), 0.4, BULB_SPACING));
-  const wallY = 2.25;
-  const left = [new THREE.Vector3(-8.8, wallY, COURTYARD_Z), new THREE.Vector3(-GATE_HALF - 0.1, wallY, COURTYARD_Z)];
-  const right = [new THREE.Vector3(GATE_HALF + 0.1, wallY, COURTYARD_Z), new THREE.Vector3(8.8, wallY, COURTYARD_Z)];
-  strands.push(sampleSwag(left[0], left[1], 0.2, BULB_SPACING));
-  strands.push(sampleSwag(right[0], right[1], 0.2, BULB_SPACING));
+  // Boundary: two swags, one above the other, between each pair of neighbouring pilasters on every wall; the posts
+  // are listed in order along each wall, and the gate pillars add the last south span each side.
+  for (const [a, b] of wallBays()) {
+    strands.push(sampleSwag(postAnchor(a), postAnchor(b), 0.35, BULB_SPACING));
+    strands.push(sampleSwag(postAnchor(a, POST_H - 0.45), postAnchor(b, POST_H - 0.45), 0.25, BULB_SPACING));
+  }
+  // Gate: a swag from each gate-side post to the pillar top.
+  for (const side of [-1, 1]) {
+    const pillar = new THREE.Vector3(side * (GATE_HALF + 0.2), POST_H + 0.1, COURTYARD_Z);
+    const post = side * SOUTH_POST_NEAR_X;
+    strands.push(sampleSwag(pillar, postAnchor({ x: post, z: SOUTH_INNER_Z + 0.175, wall: 'south' }), 0.3, BULB_SPACING));
+  }
   return strands;
 }
 
