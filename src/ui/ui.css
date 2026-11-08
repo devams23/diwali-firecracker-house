@@ -403,3 +403,54 @@
     font-size: 16px;
   }
 }
+
+/* Centre crosshair: a 4 px warm-white dot marks the aim point; a thin gold ring and a label appear while aimed at
+   something the player can use. The overlay sits at the screen centre and never takes pointer events. */
+.crosshair {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.crosshair[hidden] {
+  display: none;
+}
+.crosshair-dot {
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 246, 230, 0.8);
+}
+.crosshair-ring {
+  position: absolute;
+  left: -9px;
+  top: -9px;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #c9a227;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.crosshair-label {
+  position: absolute;
+  left: 16px;
+  top: -10px;
+  white-space: nowrap;
+  color: #f6e7b8;
+  font-size: 14px;
+  line-height: 20px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.crosshair.has-target .crosshair-ring,
+.crosshair.has-target .crosshair-label {
+  opacity: 1;
+}

@@ -203,8 +203,10 @@ export interface PropsResult {
   tulsiDiyaPos: THREE.Vector3;
   /** Brass agarbatti stand beside the diya on the same ledge. */
   agarbattiStandPos: THREE.Vector3;
+  /** The stand's group, which the crosshair aims at and highlights. */
+  agarbattiStand: THREE.Group;
   /** Cracker boxes in a row on the takht, one per kind. */
-  takhtBoxes: { kind: CrackerKind; position: THREE.Vector3 }[];
+  takhtBoxes: { kind: CrackerKind; position: THREE.Vector3; object: THREE.Mesh }[];
 }
 
 /** Builds every village prop, registers the floor colliders and returns the spots other systems use. */
@@ -217,7 +219,7 @@ export function buildProps(
   const tulsiDiyaPos = new THREE.Vector3(0, 0.95, 0.55);
   const agarbattiStandPos = new THREE.Vector3(0.3, 0.95, 0.55);
   buildTulsiChaura(scene, world, tex);
-  buildAgarbattiStand(scene, agarbattiStandPos);
+  const agarbattiStand = buildAgarbattiStand(scene, agarbattiStandPos);
 
   const rope = ropeTexture();
   buildCharpai(scene, world, tex, rope, 4.5, 3.5);
@@ -230,7 +232,7 @@ export function buildProps(
   buildNeem(scene, world, tex);
   buildAkashKandil(scene, house.verandahLanternAnchor);
 
-  return { tulsiDiyaPos, agarbattiStandPos, takhtBoxes };
+  return { tulsiDiyaPos, agarbattiStandPos, agarbattiStand, takhtBoxes };
 }
 
 /**
@@ -343,7 +345,7 @@ function buildTulsiPlant(scene: THREE.Scene): void {
  * Brass agarbatti stand on the diya ledge: a flat base and a cup. The incense itself is carried by the
  * player, so the stand holds no sticks.
  */
-function buildAgarbattiStand(scene: THREE.Scene, pos: THREE.Vector3): void {
+function buildAgarbattiStand(scene: THREE.Scene, pos: THREE.Vector3): THREE.Group {
   const group = new THREE.Group();
   group.position.copy(pos);
   const brass = brassMaterial();
@@ -355,6 +357,7 @@ function buildAgarbattiStand(scene: THREE.Scene, pos: THREE.Vector3): void {
   cup.position.y = 0.027;
   group.add(cup);
   scene.add(group);
+  return group;
 }
 
 /** Charpai: a wooden frame on four legs with a rope-woven top; registers its frame footprint as a collider. */
@@ -431,7 +434,7 @@ function buildTakhtBoxes(scene: THREE.Scene, takht: THREE.Vector3): PropsResult[
     // Slight hand-placed turn so the row does not look machined.
     box.rotation.y = (r() - 0.5) * 0.1;
     scene.add(box);
-    out.push({ kind, position: box.position.clone() });
+    out.push({ kind, position: box.position.clone(), object: box });
   });
   return out;
 }

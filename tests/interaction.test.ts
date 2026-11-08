@@ -1,54 +1,75 @@
-// Tests for crosshair picking: the chosen interactable must lie within range and under the angle cap,
-// prefer the smallest angle to the look ray, and break ties by distance. Runs under Node.
+// Tests for crosshair aiming: a struck mesh maps to the target that owns it through its parents, and the nearest owned
+// hit within reach wins while unowned hits and far hits are skipped. Runs under Node.
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { pickInteractable, type Interactable } from '../src/player/Interaction';
-import type { PlayerState } from '../src/player/PlayerState';
+import { pickAimed, resolveOwner, type AimHit } from '../src/player/Interaction';
 
-const EYE = new THREE.Vector3(0, 1.6, 0);
-const FORWARD = new THREE.Vector3(0, 0, -1);
-
-/** Builds a minimal interactable at a position with a fixed radius; its act and label are never used here. */
-function target(id: string, x: number, y: number, z: number, radius = 0.2): Interactable {
-  return {
-    id,
-    position: new THREE.Vector3(x, y, z),
-    radius,
-    label: (_s: PlayerState) => id,
-    act: () => {},
-  };
+/** A named owner used as the registry value in these tests. */
+interface Named {
+  name: string;
 }
 
-describe('pickInteractable', () => {
-  it('picks the target closest to the look direction over one far off-axis', () => {
-    const a = target('A', 0, 1.6, -1.5);
-    const b = target('B', 1.5, 1.6, -1.5);
-    expect(pickInteractable(EYE, FORWARD, [b, a])).toBe(a);
+describe('resolveOwner', () => {
+  it('finds the registered object when the struck mesh is that object', () => {
+    const root = new THREE.Object3D();
+    const owners = new Map<THREE.Object3D, Named>([[root, { name: 'box' }]]);
+    expect(resolveOwner(root, owners)?.name).toBe('box');
   });
 
-  it('returns null for a target beyond range', () => {
-    expect(pickInteractable(EYE, FORWARD, [target('far', 0, 1.6, -5)])).toBeNull();
+  it('walks up from a struck child to the registered parent', () => {
+    const root = new THREE.Object3D();
+    const child = new THREE.Mesh();
+    const grandchild = new THREE.Mesh();
+    root.add(child);
+    child.add(grandchild);
+    const owners = new Map<THREE.Object3D, Named>([[root, { name: 'stand' }]]);
+    expect(resolveOwner(grandchild, owners)?.name).toBe('stand');
   });
 
-  it('returns null for a target behind the player', () => {
-    expect(pickInteractable(EYE, FORWARD, [target('behind', 0, 1.6, 2)])).toBeNull();
+  it('returns null when no ancestor is registered', () => {
+    const lone = new THREE.Mesh();
+    expect(resolveOwner(lone, new Map<THREE.Object3D, Named>())).toBeNull();
+  });
+});
+
+describe('pickAimed', () => {
+  /** A registered target and its single hit at the given distance, for building a hit list. */
+  function owned(name: string, distance: number): { owner: Named; root: THREE.Object3D; hit: AimHit } {
+    const root = new THREE.Object3D();
+    return { owner: { name }, root, hit: { object: root, distance } };
+  }
+
+  it('picks the nearer of two owned hits', () => {
+    const near = owned('near', 1.2);
+    const far = owned('far', 2.8);
+    const owners = new Map<THREE.Object3D, Named>([
+      [near.root, near.owner],
+      [far.root, far.owner],
+    ]);
+    expect(pickAimed([far.hit, near.hit], owners, 3.5)?.name).toBe('near');
   });
 
-  it('prefers the nearer of two targets on the same ray', () => {
-    const near = target('near', 0, 1.6, -1);
-    const far = target('far', 0, 1.6, -2);
-    expect(pickInteractable(EYE, FORWARD, [far, near])).toBe(near);
+  it('skips a closer hit that no target owns, so an unowned object does not block the aim', () => {
+    const wall = new THREE.Mesh();
+    const target = owned('box', 2);
+    const owners = new Map<THREE.Object3D, Named>([[target.root, target.owner]]);
+    const hits: AimHit[] = [{ object: wall, distance: 0.5 }, target.hit];
+    expect(pickAimed(hits, owners, 3.5)?.name).toBe('box');
   });
 
-  it('picks the smaller of two in-cone angles', () => {
-    // A sits about 8.5 degrees off-axis and B about 24 degrees; both are inside the 28 degree cap.
-    const a = target('A', 0.3, 1.6, -2);
-    const b = target('B', -0.9, 1.6, -2);
-    expect(pickInteractable(EYE, FORWARD, [b, a])).toBe(a);
+  it('returns null for an owned hit beyond the reach', () => {
+    const target = owned('far', 3.6);
+    const owners = new Map<THREE.Object3D, Named>([[target.root, target.owner]]);
+    expect(pickAimed([target.hit], owners, 3.5)).toBeNull();
   });
 
-  it('lets the radius extend range: a 2.5 m target with radius 0.2 is picked', () => {
-    expect(pickInteractable(EYE, FORWARD, [target('edge', 0, 1.6, -2.5, 0.2)])).not.toBeNull();
-    expect(pickInteractable(EYE, FORWARD, [target('edge', 0, 1.6, -2.5, 0)])).toBeNull();
+  it('returns null when there are no hits', () => {
+    expect(pickAimed([], new Map<THREE.Object3D, Named>(), 3.5)).toBeNull();
+  });
+
+  it('accepts a hit exactly at the reach limit', () => {
+    const target = owned('edge', 3.5);
+    const owners = new Map<THREE.Object3D, Named>([[target.root, target.owner]]);
+    expect(pickAimed([target.hit], owners, 3.5)?.name).toBe('edge');
   });
 });

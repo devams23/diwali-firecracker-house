@@ -10,7 +10,7 @@ import { CollisionWorld } from './core/Collision';
 import { events } from './core/events';
 import { FirstPersonController } from './player/FirstPersonController';
 import { Hands } from './player/Hands';
-import { pickInteractable, type Interactable } from './player/Interaction';
+import { pickAimed, type AimHit, type Interactable } from './player/Interaction';
 import { nextHint, type PlayerState } from './player/PlayerState';
 import { makeTextures } from './world/textures';
 import { buildAangan } from './world/Aangan';
@@ -32,12 +32,13 @@ import { AudioEngine } from './audio/AudioEngine';
 import { CrackerManager } from './crackers/CrackerManager';
 import { createCracker } from './crackers/factory';
 import { HandHeld } from './crackers/HandHeld';
-import type { Cracker } from './crackers/Cracker';
 import { CRACKERS, type CrackerKind } from './crackers/catalog';
-import { placementFor, placementPoint } from './crackers/placement';
+import { AIM_MAX, placementFor, placementPoint } from './crackers/placement';
 import { Intro } from './ui/Intro';
 import { Prompt } from './ui/Prompt';
 import { Hotbar } from './ui/Hotbar';
+import { Crosshair } from './ui/Crosshair';
+import { Highlighter } from './ui/Highlight';
 import { Pause } from './ui/Pause';
 import { Finale, FinaleCounter, countsTowardFinale } from './ui/Finale';
 import { Toast } from './ui/Toast';
@@ -70,8 +71,6 @@ const STARTER_PACK: [CrackerKind, number][] = [
 ];
 /** Seconds the "Step back!" prompt stays after a cracker is lit on the ground. */
 const STEP_BACK_SECONDS = 2;
-/** Reach, in metres, of the look-direction fallback for lighting a cracker on the ground. */
-const LOOK_FALLBACK_REACH = 1.6;
 /** Radius, in metres, around the agarbatti tip within which a ground fuse can be lit. */
 const TIP_REACH = 0.6;
 /** Metres ahead of the player at which the debug hook places a cracker, so it is in view from a tilted camera. */
@@ -123,7 +122,16 @@ export class Game {
   private readonly agarbatti: Agarbatti;
   private readonly props: PropsResult;
   private readonly interactables: Interactable[] = [];
-  private readonly candidates: Interactable[] = [];
+  /** Every object the crosshair can aim at, mapped to the interactable it stands for. */
+  private readonly aimTargets = new WeakMap<THREE.Object3D, Interactable>();
+  /** Scratch list of the objects the aim ray is cast against this frame. */
+  private readonly aimRoots: THREE.Object3D[] = [];
+  /** Scratch list of this frame's raycast hits, in the form pickAimed reads. */
+  private readonly aimHits: AimHit[] = [];
+  private readonly aimer = new THREE.Raycaster();
+  private readonly aimCentre = new THREE.Vector2(0, 0);
+  private readonly crosshair: Crosshair;
+  private readonly highlighter = new Highlighter();
   private readonly state: PlayerState = {
     hasAgarbatti: false,
     agarbattiLit: false,
@@ -143,7 +151,6 @@ export class Game {
   private readonly hotbar: Hotbar;
   private readonly tmpDir = new THREE.Vector3();
   private readonly tmpForward = new THREE.Vector3();
-  private readonly tmpPoint = new THREE.Vector3();
   private readonly finaleAt = new THREE.Vector3();
   /** Plays a far bang once its delay has passed; a field so the per-frame drain does not allocate a closure. */
   private readonly playFar = (e: FarBang): void => {
@@ -190,15 +197,15 @@ export class Game {
     this.engine.add(this.sky);
     this.engine.add(new Festoons(scene));
 
-    // Six real lit lamps: the tulsi diya, two at the door and three in the aangan niches.
+    // Six real lit lamps: the tulsi diya, two at the door and three in the aangan niches. The tulsi diya comes first
+    // and is kept by name so the crosshair can aim at it.
+    const tulsi = new Diya(this.props.tulsiDiyaPos, { light: true });
     const litPositions: THREE.Vector3[] = [
-      this.props.tulsiDiyaPos,
       new THREE.Vector3(house.doorPosition.x - 1.25, 0.3, -8.2),
       new THREE.Vector3(house.doorPosition.x + 1.25, 0.3, -8.2),
       ...LIT_NICHES.map((i) => aangan.diyaSpots[i]),
     ];
-    for (const pos of litPositions) {
-      const d = new Diya(pos, { light: true });
+    for (const d of [tulsi, ...litPositions.map((pos) => new Diya(pos, { light: true }))]) {
       scene.add(d.object);
       this.engine.add(d);
     }
@@ -256,6 +263,7 @@ export class Game {
     this.toast = new Toast(uiEl);
     this.hotbar = new Hotbar(uiEl);
     this.prompt = new Prompt(uiEl);
+    this.crosshair = new Crosshair(uiEl);
     this.finale = new Finale(uiEl);
     this.pause = new Pause(uiEl, {
       onResume: () => this.input.requestLock(),
@@ -265,7 +273,7 @@ export class Game {
     // Added last so the opening card sits above everything else until it fades.
     this.intro = new Intro(uiEl, () => this.begin());
 
-    this.buildInteractables();
+    this.buildInteractables(tulsi.object);
 
     // Clicking the canvas after the intro captures the pointer again, so the view turns with the mouse.
     this.engine.renderer.domElement.addEventListener('click', () => {
@@ -308,23 +316,21 @@ export class Game {
    * Creates every interactable: the stall boxes (each buys a pack), the agarbatti stand and the tulsi diya. The
    * stall boxes are the only way to restock, so their label names the pack that E will add.
    */
-  private buildInteractables(): void {
+  private buildInteractables(tulsiObject: THREE.Object3D): void {
     for (const box of this.props.takhtBoxes) {
       const info = CRACKERS[box.kind];
       const label = `E — Take ${info.pack} ${info.label}`;
-      this.interactables.push({
+      this.addInteractable({
         id: `box-${box.kind}`,
-        position: box.position,
-        radius: 0.3,
+        root: box.object,
         label: () => label,
         act: () => this.buyPack(box.kind, box.position),
       });
     }
 
-    this.interactables.push({
+    this.addInteractable({
       id: 'agarbatti-stand',
-      position: this.props.agarbattiStandPos,
-      radius: 0.2,
+      root: this.props.agarbattiStand,
       label: () => (this.hasAgarbatti ? null : 'E — Take the agarbatti'),
       act: () => {
         this.hasAgarbatti = true;
@@ -332,10 +338,9 @@ export class Game {
       },
     });
 
-    this.interactables.push({
+    this.addInteractable({
       id: 'tulsi-diya',
-      position: this.props.tulsiDiyaPos,
-      radius: 0.2,
+      root: tulsiObject,
       label: () => (this.hasAgarbatti && !this.agarbattiLit ? 'E — Light the agarbatti at the diya' : null),
       act: () => {
         this.agarbattiLit = true;
@@ -344,6 +349,12 @@ export class Game {
         events.emit('lit', { kind: 'agarbatti' });
       },
     });
+  }
+
+  /** Adds an interactable to the list and registers its root as an aim target. */
+  private addInteractable(it: Interactable): void {
+    this.interactables.push(it);
+    this.aimTargets.set(it.root, it);
   }
 
   /** Dismisses the intro: starts audio, captures the pointer and begins the walk through the gate. */
@@ -377,6 +388,7 @@ export class Game {
     this.stepIntroWalk(dt);
     this.syncState();
     this.focus = this.started && !this.paused ? this.findFocus() : null;
+    this.updateAim();
     this.readActions(t);
     this.updateFinale(dt);
     this.updatePrompt(t);
@@ -428,14 +440,49 @@ export class Game {
     this.hotbar.update(this.inventory);
   }
 
-  /** Returns the interactable best in the crosshair among those whose label is currently shown, or null. */
+  /**
+   * Casts the aim ray from the screen centre against every target that can act right now and returns the nearest one
+   * within reach, or null. A ground cracker is a target only while the agarbatti is lit, since only then can it be lit.
+   */
   private findFocus(): Interactable | null {
-    this.candidates.length = 0;
+    const roots = this.aimRoots;
+    roots.length = 0;
     for (const it of this.interactables) {
-      if (it.label(this.state) !== null) this.candidates.push(it);
+      if (it.label(this.state) !== null) roots.push(it.root);
     }
-    if (this.candidates.length === 0) return null;
-    return pickInteractable(this.player.position, this.lookDir(this.tmpDir), this.candidates);
+    for (const c of this.crackers.list) {
+      const it = this.aimTargets.get(c.object);
+      if (it && it.label(this.state) !== null) roots.push(c.object);
+    }
+    if (roots.length === 0) return null;
+    this.aimer.setFromCamera(this.aimCentre, this.engine.camera);
+    this.aimer.far = AIM_MAX;
+    const hits = this.aimer.intersectObjects(roots, true);
+    this.aimHits.length = 0;
+    for (const h of hits) this.aimHits.push({ object: h.object, distance: h.distance });
+    return pickAimed(this.aimHits, this.aimTargets, AIM_MAX);
+  }
+
+  /** Shows the crosshair and the target highlight for this frame's focus, and hides them while play is not live. */
+  private updateAim(): void {
+    this.crosshair.show(this.started && !this.paused);
+    this.highlighter.set(this.focus ? this.focus.root : null);
+    this.crosshair.setTarget(this.focus ? this.focus.label(this.state) : null);
+  }
+
+  /**
+   * Sets a ground cracker of `kind` down at `spot` and registers it as an aim target. Its label reads "Click" only while
+   * the agarbatti is lit and its fuse is still unlit.
+   */
+  private addGround(kind: CrackerKind, spot: THREE.Vector3): void {
+    const c = createCracker(kind, this.fx, spot, this.player.yaw);
+    this.crackers.add(c);
+    this.aimTargets.set(c.object, {
+      id: `cracker-${kind}`,
+      root: c.object,
+      label: () => (this.agarbattiLit && c.timer.phase === 'idle' ? 'Click — light the fuse' : null),
+      act: () => {},
+    });
   }
 
   /** Writes the full 3D view direction (yaw and pitch) into `out`. */
@@ -476,35 +523,11 @@ export class Game {
       return;
     }
     if (!this.agarbattiLit) return;
-    const target = this.crackers.nearestUnlit(this.agarbatti.tipWorld, TIP_REACH) ?? this.nearestAhead();
+    const target = this.crackers.nearestUnlit(this.agarbatti.tipWorld, TIP_REACH);
     if (!target) return;
     this.hands.poke();
     target.light();
     this.stepBackUntil = t + STEP_BACK_SECONDS;
-  }
-
-  /**
-   * Fallback for lighting: the nearest unlit cracker within LOOK_FALLBACK_REACH metres of the player, in front of
-   * them, so the player need not crouch to the tip. Scratch vectors keep this allocation-free.
-   */
-  private nearestAhead(): Cracker | null {
-    this.player.forward(this.tmpForward);
-    const px = this.player.position.x;
-    const pz = this.player.position.z;
-    let best: Cracker | null = null;
-    let bestDist = LOOK_FALLBACK_REACH;
-    for (const c of this.crackers.list) {
-      if (c.timer.phase !== 'idle') continue;
-      c.fuseWorld(this.tmpPoint);
-      const dx = this.tmpPoint.x - px;
-      const dz = this.tmpPoint.z - pz;
-      const d = Math.hypot(dx, dz);
-      if (d > bestDist) continue;
-      if (dx * this.tmpForward.x + dz * this.tmpForward.z <= 0) continue;
-      bestDist = d;
-      best = c;
-    }
-    return best;
   }
 
   /**
@@ -533,7 +556,7 @@ export class Game {
     this.inventory.take(kind);
     this.player.forward(this.tmpForward);
     const spot = placementFor(this.engine.camera.position, this.lookDir(this.tmpDir), this.tmpForward);
-    this.crackers.add(createCracker(kind, this.fx, spot, this.player.yaw));
+    this.addGround(kind, spot);
   }
 
   /** Clears the left hand when a sparkler burns out and counts it toward the finale. */
@@ -594,8 +617,7 @@ export class Game {
   private debugPlace(kind: CrackerKind): void {
     if (CRACKERS[kind].handheld) throw new Error(`debug place: ${kind} is hand-held`);
     this.player.forward(this.tmpForward);
-    const spot = placementPoint(this.player.position, this.tmpForward, DEBUG_PLACE_REACH);
-    this.crackers.add(createCracker(kind, this.fx, spot, this.player.yaw));
+    this.addGround(kind, placementPoint(this.player.position, this.tmpForward, DEBUG_PLACE_REACH));
   }
 
   /**
@@ -633,13 +655,11 @@ export class Game {
     this.player.pitch = pitch;
   }
 
-  /** Chooses the prompt: the "Step back!" warning, the focused object's label, or the next onboarding hint. */
+  /** Chooses the prompt: the "Step back!" warning after a light, otherwise the next onboarding hint. */
   private updatePrompt(t: number): void {
     let text = '';
     if (this.started && !this.paused) {
-      if (t < this.stepBackUntil) text = 'Step back!';
-      else if (this.focus) text = this.focus.label(this.state) ?? '';
-      else text = nextHint(this.state);
+      text = t < this.stepBackUntil ? 'Step back!' : nextHint(this.state);
     }
     this.prompt.set(text);
   }
