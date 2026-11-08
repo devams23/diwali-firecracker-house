@@ -214,3 +214,46 @@ test('the sky show is shot from a tilted view during a salvo', async ({ page }) 
   expect((await pixelStats(page, sky)).mean).toBeGreaterThan(MIN_MEAN_LUMINANCE);
   expect(errors).toEqual([]);
 });
+
+test('the verandah diyas light up and the counter reads 11 / 11', async ({ page }) => {
+  const errors = await watchErrors(page);
+  await page.goto('/?debug');
+  await startFromIntro(page);
+
+  // Stand in front of the verandah, looking down at the row, and light all eleven lamps.
+  await page.evaluate(() => {
+    const d = window.__diwali!;
+    d.teleport(0, -2.6, 0, -0.42);
+    d.lightDiyas();
+    d.advance(2.2);
+  });
+  await page.waitForTimeout(VIEW_SETTLE_MS);
+  const diyas = await page.screenshot({ path: 'screenshots/diyas.png' });
+
+  await expect(page.locator('.diya-counter')).toContainText('11 / 11');
+  expect((await pixelStats(page, diyas)).mean).toBeGreaterThan(MIN_MEAN_LUMINANCE);
+  expect(errors).toEqual([]);
+});
+
+test('sky lanterns rise into the night, one still in the hand', async ({ page }) => {
+  const errors = await watchErrors(page);
+  await page.goto('/?debug');
+  await startFromIntro(page);
+
+  // Three lanterns released at different times, so the sky shows them at three heights, and the last just lit.
+  await page.evaluate(() => {
+    const d = window.__diwali!;
+    d.teleport(0, 8, 0, 0.72);
+    for (const climb of [25, 14, 8]) {
+      d.releaseLantern();
+      d.advance(climb);
+    }
+    d.releaseLantern();
+    d.advance(1.7);
+  });
+  await page.waitForTimeout(VIEW_SETTLE_MS);
+  const lantern = await page.screenshot({ path: 'screenshots/lantern.png' });
+
+  expect((await pixelStats(page, lantern)).mean).toBeGreaterThan(MIN_MEAN_LUMINANCE);
+  expect(errors).toEqual([]);
+});
