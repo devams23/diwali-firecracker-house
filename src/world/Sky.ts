@@ -59,10 +59,10 @@ const CUE_MIN = 2.2;
 const CUE_RANGE = 2.8;
 /** Chance that a cue fires a second rocket at once, for a pair. */
 const SALVO_CHANCE = 0.3;
-/** Dome gradient stops: a saffron-rose horizon, a deep indigo middle and a dark indigo zenith. */
-const HORIZON = 0x5a3550;
-const MID = 0x3a2a5a;
-const ZENITH = 0x0b1030;
+/** Dome gradient stops: a magenta-rose horizon, a violet middle and a deep blue zenith. */
+const HORIZON = 0xd2557e;
+const MID = 0x5b2fa0;
+const ZENITH = 0x0c1f66;
 /** Colour of the warm glow band that lies low on the horizon, where the whole village lamplight rises. */
 const GLOW = 0xffa050;
 /** Burst colours: gold, saffron, red, green and white, muted so distant bursts read as far away, not neon. */

@@ -68,6 +68,9 @@ function jhalarStrands(): THREE.Vector3[][] {
     strands.push(sampleSwag(new THREE.Vector3(x0, 2.5, JHALAR_Z), new THREE.Vector3(x1, 2.5, JHALAR_Z), 0.3, BULB_SPACING));
     strands.push(sampleSwag(new THREE.Vector3(x0, 2.38, JHALAR_Z), new THREE.Vector3(x1, 2.38, JHALAR_Z), 0.22, BULB_SPACING));
   }
+  // Roof edge: a taut line along the front eave and a drooping one just under it, so the whole roofline is outlined.
+  strands.push(sampleSwag(new THREE.Vector3(-9.6, 2.68, -6.78), new THREE.Vector3(9.6, 2.68, -6.78), 0.05, BULB_SPACING));
+  strands.push(sampleSwag(new THREE.Vector3(-9.6, 2.5, -6.78), new THREE.Vector3(9.6, 2.5, -6.78), 0.4, BULB_SPACING));
   const wallY = 2.25;
   const left = [new THREE.Vector3(-8.8, wallY, COURTYARD_Z), new THREE.Vector3(-GATE_HALF - 0.1, wallY, COURTYARD_Z)];
   const right = [new THREE.Vector3(GATE_HALF + 0.1, wallY, COURTYARD_Z), new THREE.Vector3(8.8, wallY, COURTYARD_Z)];

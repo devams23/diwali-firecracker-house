@@ -34,12 +34,32 @@ interface Span {
 
 /** Lime-and-geru plaster material; `rx` repeats the texture along the wall's length. */
 export function plasterMaterial(tex: Textures, rx: number): THREE.MeshStandardMaterial {
+  const map = tile(tex.plaster, rx, 1);
   return new THREE.MeshStandardMaterial({
-    map: tile(tex.plaster, rx, 1),
+    map,
+    // A warm lime-wash tint over the texture, plus a self-lit copy of it, so walls glow in the festive light.
+    color: 0xfff0dc,
+    emissive: 0xffb878,
+    emissiveMap: map,
+    emissiveIntensity: 0.32,
     roughness: 0.92,
     metalness: 0,
   });
 }
+
+/** Saffron and indigo festive paint for the wall bands; emissive so they read at night without extra lights. */
+const BAND_SAFFRON = new THREE.MeshStandardMaterial({
+  color: 0xff9a1e,
+  emissive: 0xff7a10,
+  emissiveIntensity: 0.55,
+  roughness: 0.85,
+});
+const BAND_INDIGO = new THREE.MeshStandardMaterial({
+  color: 0x3a4fc0,
+  emissive: 0x2a3ca8,
+  emissiveIntensity: 0.5,
+  roughness: 0.85,
+});
 
 /** Wood material for doors, posts and the takht; `color` tints the texture when a darker board is needed. */
 export function woodMaterial(
@@ -104,6 +124,20 @@ function addWall(scene: THREE.Scene, tex: Textures, s: Span, coping: boolean): v
   mesh.position.set((s.minX + s.maxX) / 2, (s.minY + s.maxY) / 2, (s.minZ + s.maxZ) / 2);
   scene.add(mesh);
   if (coping) {
+    // Painted bands run the wall's length: indigo near the foot and saffron just under the coping. They stand 4 cm
+    // proud of the jittered faces so the paint never sinks into the plaster.
+    const long = w >= d;
+    for (const [band, y, bandH] of [
+      [BAND_INDIGO, s.minY + 0.24, 0.16],
+      [BAND_SAFFRON, s.maxY - 0.2, 0.12],
+    ] as const) {
+      const strip = new THREE.Mesh(
+        new THREE.BoxGeometry(long ? w + 0.02 : w + 0.08, bandH, long ? d + 0.08 : d + 0.02),
+        band,
+      );
+      strip.position.set((s.minX + s.maxX) / 2, y, (s.minZ + s.maxZ) / 2);
+      scene.add(strip);
+    }
     // Coping overlaps the wall top slightly so a jittered top never shows a gap.
     const cap = new THREE.Mesh(new THREE.BoxGeometry(w + 0.1, 0.1, d + 0.1), mat);
     cap.position.set((s.minX + s.maxX) / 2, s.maxY + 0.03, (s.minZ + s.maxZ) / 2);

@@ -14,8 +14,8 @@ export interface Updatable {
 
 /** Largest frame step fed to systems, so a tab switch does not teleport physics or fireworks. */
 const MAX_DT = 0.05;
-/** Warm indigo for the sky fog and background: lifts the night into an evening glow rather than a black room. */
-const NIGHT_FOG = 0x1a1530;
+/** Violet dusk for the sky fog and background: a festive evening glow, so distant things melt into purple rather than black. */
+const NIGHT_FOG = 0x3c2a64;
 
 /** Rendering core: renderer, scene, camera, bloom composer and the frame loop. */
 export class Engine {
@@ -41,7 +41,7 @@ export class Engine {
     this.renderer.setPixelRatio(pixelRatio);
     this.renderer.setSize(width, height);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.35;
+    this.renderer.toneMappingExposure = 1.5;
     // Shadows are off for performance; the diyas provide fake local light instead.
     this.renderer.shadowMap.enabled = false;
     container.appendChild(this.renderer.domElement);
