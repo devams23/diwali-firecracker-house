@@ -20,10 +20,10 @@ const MESH_WRIST = new THREE.Vector3(0.039, 0.074, 0.01);
 const MESH_SCALE = 1.75;
 /** Per-joint curl of each finger in degrees [proximal, intermediate, distal], progressive from index to pinky. */
 const CURL: ReadonlyArray<readonly [string, number, number, number]> = [
-  ['index', 62, 72, 55],
-  ['middle', 68, 76, 58],
-  ['ring', 74, 80, 60],
-  ['pinky', 80, 82, 62],
+  ['index', 70, 80, 60],
+  ['middle', 76, 84, 62],
+  ['ring', 82, 86, 64],
+  ['pinky', 88, 88, 66],
 ];
 /** Where the stick passes through the mesh-space fist, between the curled fingers and the thumb. */
 const MESH_GRIP = new THREE.Vector3(0.012, -0.03, 0.015);
@@ -353,11 +353,13 @@ function poseHandBones(root: THREE.Object3D, sx: number): void {
     bendBone(bone(`${f}-finger-phalanx-intermediate`), across, -rad(m) * sx);
     bendBone(bone(`${f}-finger-phalanx-distal`), across, -rad(d) * sx);
   }
-  // Thumb: swing it in toward the index finger (about y), then fold it over the stick.
-  bendBone(bone('thumb-metacarpal'), new THREE.Vector3(0, 1, 0), rad(25) * sx);
-  bendBone(bone('thumb-metacarpal'), across, -rad(20) * sx);
-  bendBone(bone('thumb-phalanx-proximal'), across, -rad(25) * sx);
-  bendBone(bone('thumb-phalanx-distal'), across, -rad(30) * sx);
+  // Thumb: swing it across the palm toward the curled index finger (about y), fold it along the fingers toward the
+  // little-finger side (about x, which needs no mirror sign), then bend its joints so the tip rests over the index.
+  const alongPalm = new THREE.Vector3(1, 0, 0);
+  bendBone(bone('thumb-metacarpal'), new THREE.Vector3(0, 1, 0), rad(50) * sx);
+  bendBone(bone('thumb-metacarpal'), alongPalm, -rad(45));
+  bendBone(bone('thumb-phalanx-proximal'), alongPalm, -rad(50));
+  bendBone(bone('thumb-phalanx-distal'), alongPalm, -rad(45));
 }
 
 /**
@@ -386,10 +388,10 @@ function buildMeshHand(scene: THREE.Object3D, mats: HandMaterials, grip: THREE.G
   forearm.position.y = -0.004;
   handFrame.add(forearm);
 
-  // The grip anchor: the stick runs across the palm (mesh z) and leaves past the little-finger side (+z).
+  // The grip anchor: the stick runs across the palm (mesh z) and leaves past the thumb and index side (-z).
   const anchor = new THREE.Group();
   anchor.position.set(MESH_GRIP.x * sx, MESH_GRIP.y, MESH_GRIP.z).sub(wristAt).multiplyScalar(MESH_SCALE);
-  anchor.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1));
+  anchor.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1));
   grip.position.set(0, 0, 0);
   grip.quaternion.identity();
   anchor.add(grip);
@@ -403,13 +405,15 @@ function buildMeshHand(scene: THREE.Object3D, mats: HandMaterials, grip: THREE.G
 
 /**
  * Orientation of the mesh hand in camera space: the wrist (+y) runs down and toward the viewer out of the bottom-right,
- * and the stick axis (+z, toward the little finger) points up and slightly forward. Mirrored for the left hand.
+ * and the stick axis points up and slightly inward and forward, with the thumb and index side (-z) on top so the stick
+ * leaves the fist beside the thumb and the back of the hand (+x) faces right. Mirrored for the left hand.
  */
 function meshPoseQuaternion(sx: number): THREE.Quaternion {
-  const y = new THREE.Vector3(0.55, -0.55, 0.62).normalize();
-  // z (toward the little finger) runs up the stick, so the back of the hand faces the viewer and the thumb is below; made perpendicular to the wrist.
-  const up = new THREE.Vector3(0, 1, -0.25);
-  const z = up.clone().addScaledVector(y, -up.dot(y)).normalize();
+  const y = new THREE.Vector3(-0.1, -0.55, 0.8).normalize();
+  // The thumb and index side (-z) runs up the stick, so the stick leaves the fist beside the thumb, and the back of the
+  // hand (+x) faces right. The stick leans a little toward the screen centre and away; made perpendicular to the wrist.
+  const up = new THREE.Vector3(-0.45, 1, 0.1);
+  const z = up.clone().addScaledVector(y, -up.dot(y)).normalize().negate();
   const x = new THREE.Vector3().crossVectors(y, z);
   const basis = new THREE.Matrix4().makeBasis(x, y, z);
   const mirror = new THREE.Matrix4().makeScale(sx, 1, 1);
