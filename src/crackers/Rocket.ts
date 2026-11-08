@@ -1,39 +1,83 @@
 // Rocket: a rocket tube on a bamboo stick, standing in its green bottle on the ground. When the fuse runs out the
-// rocket body pulls out of the bottle (the bottle stays behind) and flies up along a slightly tilted path, speeding
-// to 35 m/s with a smoke and spark trail and a whoosh. At 1.6 s or 40 m it bursts in the sky in a random shape and
-// palette. The flying body is built per cracker and freed when it bursts; the shared label and body materials stay.
+// rocket body pulls out of the bottle (the bottle stays behind) and sputters at the mouth for 0.3 s. Then it
+// whooshes off along a slightly tilted path with a small wobble, accelerating to 35 m/s and trailing a dense gold
+// spark stream with a hot glowing head and a brief flash at launch. At a random apex of 30 to 38 m it bursts in one
+// of five shapes (peony, chrysanthemum, ring, crossette or palm) in a festive colour pair. The flying body is built
+// per cracker and freed when it bursts; the shared label and body materials stay.
 import * as THREE from 'three';
 import { Cracker } from './Cracker';
 import type { FxContext } from '../fx/FxContext';
 import type { SoundHandle } from '../audio/AudioEngine';
 import { BOTTLE_NAME } from '../items/crackerModels';
-import { aerialBurst, SKY_PALETTES, type BurstStyle } from '../fx/aerialBurst';
+import { aerialBurst, FESTIVE_PALETTES, type BurstStyle } from '../fx/aerialBurst';
 import { events } from '../core/events';
 
-/** Seconds of flight before the rocket bursts, whatever its height. */
-const FLIGHT_SECONDS = 1.6;
-/** Distance flown before the rocket bursts, in metres. */
-const MAX_RANGE = 40;
+/** Seconds of pre-ignition sputter at the bottle mouth before the rocket leaves. */
+export const SPUTTER_SECONDS = 0.3;
+/** Longest the flight may last before the rocket bursts anyway, in seconds. */
+const FLIGHT_CAP = 3;
+/** Lowest and highest apex the rocket can burst at, in metres of flight. */
+const APEX_MIN = 30;
+const APEX_MAX = 38;
 /** Top speed of the rocket, in m/s. */
 const TOP_SPEED = 35;
 /** Acceleration on the way up, in m/s². */
 const ACCEL = 30;
 /** Largest tilt of the flight path away from straight up, in radians. */
 const TILT_MAX = 0.12;
+/** Sideways wobble of the body in flight, in metres, and its angular rate in rad/s. */
+const WOBBLE_AMP = 0.1;
+const WOBBLE_RATE = 9;
+/** Seconds of flight over which the wobble grows from nothing. */
+const WOBBLE_RAMP = 0.4;
 /** Seconds between smoke puffs along the trail. */
 const SMOKE_INTERVAL = 0.08;
-/** Trail sparks per second. */
-const SPARK_RATE = 120;
+/** Trail sparks per second: dense enough to read as a gold stream. */
+const TRAIL_RATE = 500;
+/** Sparks per frame in the hot glowing head. */
+const HEAD_PER_FRAME = 2;
+/** Sparks per second in the sputter at the mouth, before the rocket leaves. */
+const SPUTTER_RATE = 220;
+/** Trail and head colours: gold and hot white-gold. */
+const TRAIL_COLORS = [0xffb83a, 0xffd36a, 0xfff0b8];
+const HEAD_COLORS = [0xfff4d0, 0xffe08a];
+/** Launch flash: gold, with a short reach and duration. */
+const LAUNCH_FLASH_COLOR = 0xffc24a;
+const LAUNCH_FLASH_INTENSITY = 3;
+const LAUNCH_FLASH_DISTANCE = 25;
+const LAUNCH_FLASH_SECONDS = 0.3;
 /** Burst power announced on the game event bus when the rocket bursts. */
 const BURST_POWER = 0.7;
-/** Shapes the rocket can burst into. */
-const STYLES: BurstStyle[] = ['peony', 'willow', 'crackle', 'ring'];
-/** Willow bursts use the gold palette, which reads as the classic drooping gold. */
-const GOLD_INDEX = 2;
+/** Peony spark count range for one rocket, and the spark size range that matches the anar's sparks. */
+const PEONY_COUNT: [number, number] = [350, 500];
+const BURST_SIZE: [number, number] = [0.1, 0.14];
 const TAU = Math.PI * 2;
 const UP = new THREE.Vector3(0, 1, 0);
 
-/** Rocket: flies its body out of the bottle, trails smoke and sparks, and bursts in the sky. */
+/** The five shapes a rocket can burst into. */
+export const ROCKET_STYLES: BurstStyle[] = ['peony', 'chrysanthemum', 'ring', 'crossette', 'palm'];
+
+/**
+ * Picks the burst shape for a rocket from a unit random number, so each shape is equally likely. Values at or above
+ * 1 give the last shape rather than running off the list.
+ */
+export function pickRocketStyle(u: number): BurstStyle {
+  const i = Math.min(ROCKET_STYLES.length - 1, Math.max(0, Math.floor(u * ROCKET_STYLES.length)));
+  return ROCKET_STYLES[i];
+}
+
+/** Picks one festive colour pair from a unit random number, so each pair is equally likely. */
+export function pickFestivePalette(u: number): number[] {
+  const i = Math.min(FESTIVE_PALETTES.length - 1, Math.max(0, Math.floor(u * FESTIVE_PALETTES.length)));
+  return FESTIVE_PALETTES[i];
+}
+
+/** Picks the apex of a rocket's flight, in metres, from a unit random number, within the 30 to 38 m band. */
+export function pickApex(u: number): number {
+  return APEX_MIN + (APEX_MAX - APEX_MIN) * Math.min(1, Math.max(0, u));
+}
+
+/** Rocket: sputters, flies its body out of the bottle, trails sparks and smoke, and bursts at its apex in the sky. */
 export class Rocket extends Cracker {
   /** The flying body, or null before ignition and after the burst. */
   private body: THREE.Group | null = null;
@@ -41,16 +85,30 @@ export class Rocket extends Cracker {
   private readonly flightDir = new THREE.Vector3();
   /** Direction the trail sparks are thrown, which is back down the flight path. */
   private readonly trailDir = new THREE.Vector3();
+  /** Where the body is on its straight flight path, before the wobble is added. */
+  private readonly basePos = new THREE.Vector3();
+  /** Scratch direction for the sputter sparks, reused every frame. */
+  private readonly sputterDir = new THREE.Vector3();
   /** Current speed in m/s, ramped up to the top speed. */
   private speed = 0;
   /** Distance flown so far, in metres. */
   private travelled = 0;
+  /** Height at which this rocket bursts, in metres, picked at ignition. */
+  private apex = APEX_MAX;
+  /** Seconds since launch; zero until the sputter ends. */
+  private flightTime = 0;
+  /** Whether the body has left the mouth; set once when the sputter ends. */
+  private launched = false;
   /** The whoosh that follows the body, stopped when the rocket bursts. */
   private whoosh: SoundHandle | null = null;
   /** Seconds since the last smoke puff. */
   private smokeAcc = 0;
   /** Fractional trail-spark count carried between frames. */
   private sparkAcc = 0;
+  /** Fractional sputter-spark count carried between frames. */
+  private sputterAcc = 0;
+  /** Seconds since the last sputter flash, so the mouth flickers rather than glowing steadily. */
+  private sputterFlash = 0;
   /** Scratch vector for the body's world position at ignition. */
   private readonly worldPos = new THREE.Vector3();
 
@@ -59,7 +117,7 @@ export class Rocket extends Cracker {
     super('rocket', fx, model);
   }
 
-  /** Lifts the body out of the bottle and starts the flight and its whoosh. */
+  /** Lifts the body out of the bottle and sets its path and apex; the sputter starts at the mouth. */
   protected onIgnite(): void {
     this.detachBody();
     // A slightly random tilt, so no two rockets fly the same path.
@@ -67,25 +125,48 @@ export class Rocket extends Cracker {
     const tilt = Math.random() * TILT_MAX;
     this.flightDir.set(Math.sin(tilt) * Math.cos(az), Math.cos(tilt), Math.sin(tilt) * Math.sin(az));
     this.trailDir.copy(this.flightDir).negate();
-    this.body?.quaternion.setFromUnitVectors(UP, this.flightDir);
-    if (this.body) this.whoosh = this.fx.audio.play('whoosh', this.body.position, { duration: FLIGHT_SECONDS });
+    this.apex = pickApex(Math.random());
+    if (this.body) {
+      this.basePos.copy(this.body.position);
+      this.body.quaternion.setFromUnitVectors(UP, this.flightDir);
+    }
+    // Launch flash: the mouth lights up as the rocket is set off.
+    if (this.body) this.fx.flashes.flash(this.body.position, LAUNCH_FLASH_COLOR, LAUNCH_FLASH_INTENSITY, LAUNCH_FLASH_DISTANCE, LAUNCH_FLASH_SECONDS);
   }
 
-  /** Flies the body up, trails it, and bursts it at 1.6 s or 40 m. */
+  /** Sputters, then flies the body up, trails it, and bursts it at its apex or after the flight cap. */
   protected onActive(dt: number): boolean {
     // onIgnite always runs first and creates the body, so a missing body means the flight is already over.
     const body = this.body;
     if (!body) return true;
-    if (this.activeTime >= FLIGHT_SECONDS || this.travelled >= MAX_RANGE) {
+
+    if (this.activeTime < SPUTTER_SECONDS) {
+      this.sputter(dt, body.position);
+      return false;
+    }
+    if (!this.launched) {
+      this.launched = true;
+      this.whoosh = this.fx.audio.play('whoosh', body.position, { duration: FLIGHT_CAP });
+    }
+    if (this.flightTime >= FLIGHT_CAP || this.travelled >= this.apex) {
       this.burstAndRelease();
       return true;
     }
 
     // Speed ramps up to the top speed, then holds it; the body moves along the flight path.
+    this.flightTime += dt;
     this.speed = Math.min(TOP_SPEED, this.speed + ACCEL * dt);
     const step = this.speed * dt;
-    body.position.addScaledVector(this.flightDir, step);
+    this.basePos.addScaledVector(this.flightDir, step);
     this.travelled += step;
+
+    // The body wobbles sideways, a little more each moment, so the flight is not a ruler-straight line.
+    const ramp = Math.min(1, this.flightTime / WOBBLE_RAMP);
+    body.position.set(
+      this.basePos.x + Math.sin(this.flightTime * WOBBLE_RATE) * WOBBLE_AMP * ramp,
+      this.basePos.y,
+      this.basePos.z + Math.cos(this.flightTime * WOBBLE_RATE * 0.73) * WOBBLE_AMP * ramp,
+    );
     this.whoosh?.setPosition(body.position);
     this.trail(dt, body.position);
     return false;
@@ -116,7 +197,39 @@ export class Rocket extends Cracker {
     this.body = body;
   }
 
-  /** Throws a light smoke puff and a spark stream backwards from the body at the given rates. */
+  /**
+   * The pre-launch sputter: a flickering spray of gold sparks from the mouth, with the body trembling a hair's width
+   * in the bottle, before it leaves.
+   */
+  private sputter(dt: number, at: THREE.Vector3): void {
+    this.sputterFlash += dt;
+    if (this.sputterFlash >= 0.07) {
+      this.sputterFlash = 0;
+      this.fx.flashes.flash(at, LAUNCH_FLASH_COLOR, 0.8 + Math.random() * 0.6, 4, 0.08);
+    }
+    this.sputterAcc += SPUTTER_RATE * dt;
+    const n = Math.floor(this.sputterAcc);
+    if (n > 0) {
+      this.sputterAcc -= n;
+      this.sputterDir.set((Math.random() - 0.5) * 0.6, 1, (Math.random() - 0.5) * 0.6).normalize();
+      this.fx.sparks.emit({
+        position: at,
+        direction: this.sputterDir,
+        speed: [1, 3],
+        spread: 0.5,
+        count: n,
+        colors: TRAIL_COLORS,
+        life: [0.2, 0.45],
+        size: [0.018, 0.028],
+        crackle: true,
+      });
+    }
+  }
+
+  /**
+   * Throws a light smoke puff, a dense gold spark stream backwards from the body, and a hot glowing head at the
+   * body's nose. The stream sparks drift and crackle; the head is a few extra-large sparks each frame.
+   */
   private trail(dt: number, at: THREE.Vector3): void {
     this.smokeAcc += dt;
     if (this.smokeAcc >= SMOKE_INTERVAL) {
@@ -124,7 +237,7 @@ export class Rocket extends Cracker {
       this.fx.smoke.puff(at, { count: 1, size: 0.25, life: 1.5, rise: 0.3, color: 0xb8b2a8 });
     }
 
-    this.sparkAcc += SPARK_RATE * dt;
+    this.sparkAcc += TRAIL_RATE * dt;
     const n = Math.floor(this.sparkAcc);
     if (n > 0) {
       this.sparkAcc -= n;
@@ -134,23 +247,38 @@ export class Rocket extends Cracker {
         speed: [1, 2.5],
         spread: 0.3,
         count: n,
-        colors: [0xffb347, 0xffe0a0],
-        life: [0.2, 0.5],
-        size: [0.01, 0.02],
+        colors: TRAIL_COLORS,
+        life: [0.3, 0.6],
+        size: [0.018, 0.028],
+        gravity: 2,
+        drag: 1.5,
+        crackle: true,
       });
     }
+
+    // The hot head: a few very large, very short-lived white-gold sparks where the body is.
+    this.fx.sparks.emit({
+      position: at,
+      speed: [0, 0.2],
+      spread: Math.PI,
+      count: HEAD_PER_FRAME,
+      colors: HEAD_COLORS,
+      life: [0.05, 0.09],
+      size: [0.11, 0.14],
+    });
   }
 
   /**
-   * Bursts the rocket where its body is now: a random shape and palette (willow always takes gold), the burst event
-   * at that point in the sky, the whoosh stopped, and the body freed.
+   * Bursts the rocket where its body is now: a random shape and a festive colour pair, the burst event at that
+   * point in the sky, the whoosh stopped, and the body freed. Peonies pick their spark count from 350 to 500.
    */
   private burstAndRelease(): void {
     const body = this.body;
     if (!body) return;
-    const style = STYLES[Math.floor(Math.random() * STYLES.length)];
-    const palette = style === 'willow' ? SKY_PALETTES[GOLD_INDEX] : SKY_PALETTES[Math.floor(Math.random() * SKY_PALETTES.length)];
-    aerialBurst(this.fx, body.position, style, palette);
+    const style = pickRocketStyle(Math.random());
+    const palette = pickFestivePalette(Math.random());
+    const count = style === 'peony' ? PEONY_COUNT[0] + Math.floor(Math.random() * (PEONY_COUNT[1] - PEONY_COUNT[0] + 1)) : undefined;
+    aerialBurst(this.fx, body.position, style, palette, { count, size: BURST_SIZE });
     // The event is at the burst point in the sky, not the bottle on the ground, so lighting reacts where the light is.
     events.emit('burst', { x: body.position.x, y: body.position.y, z: body.position.z, power: BURST_POWER });
     this.whoosh?.stop();
