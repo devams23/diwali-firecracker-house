@@ -257,3 +257,43 @@ test('sky lanterns rise into the night, one still in the hand', async ({ page })
   expect((await pixelStats(page, lantern)).mean).toBeGreaterThan(MIN_MEAN_LUMINANCE);
   expect(errors).toEqual([]);
 });
+
+/** Every cracker kind that is set on the ground and lit by aiming the agarbatti at it and clicking. */
+const GROUND_KINDS = ['anar', 'chakri', 'rocket', 'laxmi', 'sutli', 'ladi', 'saanp', 'skyshot'] as const;
+/** Downward tilt (radians) that puts the crosshair on a cracker 1.5 m ahead from eye height 1.6 m. */
+const LOOK_AT_PLACED = -Math.atan2(1.6, 1.5);
+/** Poll budget per step: software WebGL can take seconds per frame once several crackers burn. */
+const POLL = { timeout: 30000 } as const;
+/** Eight crackers lit and fast-forwarded one after another need far more than the default test budget here. */
+const CLICK_TEST_MS = 300000;
+
+test('aiming at a ground cracker and clicking lights its fuse, and it goes off', async ({ page }) => {
+  test.setTimeout(CLICK_TEST_MS);
+  const errors = await watchErrors(page);
+  await page.goto('/?debug');
+  await startFromIntro(page);
+
+  for (const [i, kind] of GROUND_KINDS.entries()) {
+    // Each cracker gets its own spot across the courtyard, east of the stall, so neither the stall boxes nor an
+    // earlier cracker sits under the crosshair.
+    await page.evaluate(
+      ([x, k, pitch]) => {
+        const d = window.__diwali!;
+        d.teleport(x, 6, 0, 0);
+        d.place(k);
+        // Step 1.5 m closer and look down at it: 3 m away sits at the very edge of the 3.5 m aim reach.
+        d.teleport(x, 4.5, 0, pitch);
+      },
+      [-1 + i * 0.8, kind, LOOK_AT_PLACED] as [number, (typeof GROUND_KINDS)[number], number],
+    );
+    // The crosshair must find the cracker, as the "Click — light the fuse" label promises.
+    await expect.poll(() => page.evaluate(() => window.__diwali!.focusId()), POLL).toBe(`cracker-${kind}`);
+    await page.evaluate(() => window.__diwali!.click());
+    const phaseOf = () => page.evaluate((k) => window.__diwali!.crackers().find((c) => c.kind === k)?.phase, kind);
+    await expect.poll(phaseOf, POLL).toBe('fusing');
+    // Past the longest fuse (sutli, 4 s) every kind is burning or already spent.
+    await page.evaluate(() => window.__diwali!.advance(4.5));
+    expect(['active', 'done'], `${kind} after its fuse`).toContain(await phaseOf());
+  }
+  expect(errors).toEqual([]);
+});

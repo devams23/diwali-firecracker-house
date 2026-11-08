@@ -34,6 +34,7 @@ import type { FxContext } from './fx/FxContext';
 import { aerialBurst, aerialBurstTick, drainQueue, SKY_PALETTES, type BurstStyle } from './fx/aerialBurst';
 import { AudioEngine } from './audio/AudioEngine';
 import { CrackerManager } from './crackers/CrackerManager';
+import { addPickProxy } from './crackers/pickProxy';
 import { createCracker } from './crackers/factory';
 import { HandHeld } from './crackers/HandHeld';
 import { CRACKERS, type CrackerKind } from './crackers/catalog';
@@ -187,6 +188,8 @@ export class Game {
   private readonly walkDir = new THREE.Vector3();
   /** Time (in engine seconds) until which the "Step back!" prompt is shown. */
   private stepBackUntil = -1;
+  /** Engine time of the current frame, so aim-target actions can stamp timers without being passed it. */
+  private clockTime = 0;
   /** Seconds left of the neighbours' sky-show; zero when no finale is running. */
   private finaleTime = 0;
   /** Seconds until the next neighbour burst during the finale. */
@@ -332,6 +335,9 @@ export class Game {
         skyShow: (yaw) => this.debugSkyShow(yaw),
         advance: (seconds) => this.engine.advance(seconds),
         skyBursting: () => this.sky.burstingCount(),
+        crackers: () => this.crackers.list.map((c) => ({ kind: c.kind, phase: c.timer.phase })),
+        focusId: () => this.focus?.id ?? null,
+        click: () => this.onClick(this.clockTime),
       });
     }
   }
@@ -402,6 +408,7 @@ export class Game {
 
   /** One frame of game logic, run after the player and hands have moved and before the camera shake is applied. */
   private frame(dt: number, t: number): void {
+    this.clockTime = t;
     aerialBurstTick(dt);
     drainQueue(this.farQueue, dt, this.playFar);
     this.syncPause();
@@ -496,13 +503,24 @@ export class Game {
    */
   private addGround(kind: CrackerKind, spot: THREE.Vector3): void {
     const c = createCracker(kind, this.fx, spot, this.player.yaw);
+    // An invisible box around it, so tiny or spread-out crackers (saanp goli, ladi) are easy to aim at.
+    addPickProxy(c.object);
     this.crackers.add(c);
     this.aimTargets.set(c.object, {
       id: `cracker-${kind}`,
       root: c.object,
       label: () => (this.agarbatti.lit && c.timer.phase === 'idle' ? 'Click — light the fuse' : null),
-      act: () => {},
+      // Aiming at the cracker and clicking lights it — the crosshair label promises exactly this.
+      act: () => this.lightGround(c),
     });
+  }
+
+  /** Lights a ground cracker's fuse with the agarbatti (a poke of the hand) and nudges the player to step back. */
+  private lightGround(c: { timer: { phase: string }; light(): void }): void {
+    if (!this.agarbatti.lit || c.timer.phase !== 'idle') return;
+    this.hands.poke();
+    c.light();
+    this.stepBackUntil = this.clockTime + STEP_BACK_SECONDS;
   }
 
   /** Writes the full 3D view direction (yaw and pitch) into `out`. */
@@ -542,8 +560,8 @@ export class Game {
       this.leftHeld.light();
       return;
     }
-    // A click on an aimed diya lights it (the same action as E on that diya).
-    if (this.focus && this.focus.id.startsWith('diya-')) {
+    // A click on an aimed diya or ground cracker lights it (the same action as E on that target).
+    if (this.focus && (this.focus.id.startsWith('diya-') || this.focus.id.startsWith('cracker-'))) {
       this.focus.act();
       return;
     }

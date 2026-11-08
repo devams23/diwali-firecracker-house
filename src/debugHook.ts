@@ -24,6 +24,15 @@ export interface DiwaliDebug {
   skyShow(yaw: number): void;
   /** How many shells are bursting right now; a capture polls this to catch the bright window. */
   skyBursting(): number;
+  /** Each cracker on the ground with its fuse phase, oldest first, so a test can see a click lit it. */
+  crackers(): { kind: string; phase: string }[];
+  /**
+   * Runs the left-click action exactly as a mouse click does in play. Headless browsers grant pointer lock unreliably,
+   * and play ignores clicks without it, so tests click through here.
+   */
+  click(): void;
+  /** Id of the aim target under the crosshair this frame (e.g. `cracker-chakri`), or null when nothing is aimed at. */
+  focusId(): string | null;
   /** Fast-forwards every system by this many game seconds without rendering, so a capture lands on a later moment. */
   advance(seconds: number): void;
 }
