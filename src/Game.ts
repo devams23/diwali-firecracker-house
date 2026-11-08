@@ -37,6 +37,7 @@ import { CRACKERS, type CrackerKind } from './crackers/catalog';
 import { placementFor, placementPoint } from './crackers/placement';
 import { Intro } from './ui/Intro';
 import { Prompt } from './ui/Prompt';
+import { Hotbar } from './ui/Hotbar';
 import { Pause } from './ui/Pause';
 import { Finale, FinaleCounter, countsTowardFinale } from './ui/Finale';
 import { Toast } from './ui/Toast';
@@ -139,6 +140,7 @@ export class Game {
   private readonly pause: Pause;
   private readonly finale: Finale;
   private readonly toast: Toast;
+  private readonly hotbar: Hotbar;
   private readonly tmpDir = new THREE.Vector3();
   private readonly tmpForward = new THREE.Vector3();
   private readonly tmpPoint = new THREE.Vector3();
@@ -252,6 +254,7 @@ export class Game {
     });
 
     this.toast = new Toast(uiEl);
+    this.hotbar = new Hotbar(uiEl);
     this.prompt = new Prompt(uiEl);
     this.finale = new Finale(uiEl);
     this.pause = new Pause(uiEl, {
@@ -422,6 +425,7 @@ export class Game {
     s.totalCount = this.inventory.total;
     s.placedUnlit = this.crackers.unlitCount;
     s.burstCount = this.finaleCounter.count;
+    this.hotbar.update(this.inventory);
   }
 
   /** Returns the interactable best in the crosshair among those whose label is currently shown, or null. */

@@ -1,5 +1,5 @@
 /*
- * Diwali UI styling: the opening card, the prompt chip, the pause panel, the toast and the finale
+ * Diwali UI styling: the opening card, the cracker hotbar, the prompt chip, the pause panel, the toast and the finale
  * greeting. Warm browns and gold only; no neon, no glassmorphism, no emoji, no arcade text.
  * Fonts: Tiro Devanagari Hindi for the Hindi lines, Cormorant Garamond for display, Inter for controls.
  */
@@ -103,12 +103,121 @@
   animation: intro-rise 1s ease 3.2s both;
 }
 
+/* ---------- Cracker hotbar (bottom centre) ---------- */
+
+/* Sizes and the height the prompt clears above the bar; phones shrink both (see the phone width block). */
+:root {
+  --hb-slot: 52px;
+  --hb-gap: 6px;
+  --hotbar-clear: 146px;
+}
+
+.hotbar {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* The selected kind's name, English in serif with the Devanagari beside it. */
+.hotbar-name {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
+}
+
+.hotbar-name-en {
+  font-family: var(--ui-serif);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ui-ink);
+}
+
+.hotbar-name-hi {
+  font-family: var(--ui-deva);
+  font-size: 15px;
+  color: var(--ui-ink-dim);
+}
+
+/* The bar itself: warm dark glass with a gold hairline at about 60 per cent. */
+.hotbar-row {
+  display: flex;
+  gap: var(--hb-gap);
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(28, 18, 10, 0.72);
+  border: 1px solid rgba(201, 162, 39, 0.6);
+}
+
+/* One slot: a square well with the number top-left, the icon centred and the count bottom-right. */
+.hb-slot {
+  position: relative;
+  width: var(--hb-slot);
+  height: var(--hb-slot);
+  border-radius: 8px;
+  border: 1px solid rgba(201, 162, 39, 0.22);
+  background: rgba(60, 38, 22, 0.45);
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+/* The selected slot lifts a little and takes the gold border. */
+.hb-slot.is-selected {
+  border-color: #c9a227;
+  background: rgba(96, 62, 30, 0.85);
+  transform: translateY(-6px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.hb-icon {
+  position: absolute;
+  left: 5px;
+  top: 5px;
+  width: calc(100% - 10px);
+  height: calc(100% - 10px);
+}
+
+.hb-num {
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  font-family: var(--ui-sans);
+  font-size: 10px;
+  color: var(--ui-ink-dim);
+}
+
+.hb-count {
+  position: absolute;
+  right: 5px;
+  bottom: 2px;
+  font-family: var(--ui-sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ui-ink);
+}
+
+/* An empty kind keeps its place but its icon and count are dimmed. */
+.hb-slot.is-empty .hb-icon {
+  opacity: 0.35;
+}
+
+.hb-slot.is-empty .hb-count {
+  color: rgba(244, 230, 204, 0.3);
+}
+
 /* ---------- Prompt chip ---------- */
 
 .prompt {
   position: fixed;
   left: 50%;
-  bottom: 9%;
+  bottom: var(--hotbar-clear);
   transform: translateX(-50%);
   display: flex;
   align-items: center;
@@ -276,10 +385,21 @@
 /* ---------- Phone width ---------- */
 
 @media (max-width: 600px) {
+  :root {
+    --hb-slot: 7.6vw;
+    --hb-gap: 3px;
+    --hotbar-clear: 112px;
+  }
+  .hotbar-row {
+    padding: 4px 5px;
+  }
+  .hb-num {
+    font-size: 9px;
+  }
+  .hb-count {
+    font-size: 10px;
+  }
   .prompt-text {
     font-size: 16px;
-  }
-  .prompt {
-    bottom: 22%;
   }
 }
