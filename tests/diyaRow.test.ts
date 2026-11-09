@@ -5,11 +5,10 @@ import { DIYA_COUNT, diyaRowXs, flameGrowth } from '../src/features/DiyaRow';
 describe('diyaRowXs', () => {
   it('spaces the lamps evenly and symmetrically about x = 0', () => {
     const xs = diyaRowXs(DIYA_COUNT, 5);
-    expect(xs).toHaveLength(11);
+    expect(xs).toHaveLength(12);
     expect(xs[0]).toBeCloseTo(-5);
-    expect(xs[10]).toBeCloseTo(5);
-    expect(xs[5]).toBeCloseTo(0);
-    for (let i = 1; i < xs.length; i++) expect(xs[i] - xs[i - 1]).toBeCloseTo(1);
+    expect(xs[11]).toBeCloseTo(5);
+    for (let i = 1; i < xs.length; i++) expect(xs[i] - xs[i - 1]).toBeCloseTo(10 / 11);
   });
 
   it('puts a single lamp at the centre', () => {

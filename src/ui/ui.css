@@ -646,3 +646,51 @@
 .crosshair.has-target .crosshair-label {
   opacity: 1;
 }
+
+/* ---------- Drone-show pill (top centre) ---------- */
+
+/* The diya counter and the drone-show countdown in one dark translucent pill, matching the prompt pill. */
+.drone-pill {
+  position: fixed;
+  top: 2.2%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 92vw;
+  padding: 7px 18px;
+  border-radius: 999px;
+  background: rgba(20, 14, 20, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.25);
+  font-family: var(--ui-sans);
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Gold glow once every diya is lit and the countdown runs. */
+.drone-pill.is-countdown {
+  border-color: #e8c06a;
+  box-shadow: 0 0 18px rgba(232, 192, 106, 0.45);
+}
+
+/* The small red recording dot of the live state, pulsing softly. */
+.drone-pill-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ff3b30;
+  box-shadow: 0 0 8px rgba(255, 59, 48, 0.8);
+  animation: drone-dot 1.4s ease-in-out infinite;
+}
+
+@keyframes drone-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}

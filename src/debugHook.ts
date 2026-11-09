@@ -12,8 +12,12 @@ export interface DiwaliDebug {
   lightAll(): void;
   /** Releases a sky lantern in front of the player, as F would with one selected (no stock needed). */
   releaseLantern(): void;
-  /** Lights the first n diyas of the verandah row (all eleven when n is omitted). */
+  /** Lights the first n diyas of the verandah row (all twelve when n is omitted). */
   lightDiyas(n?: number): void;
+  /** Force-starts the drone show at once, skipping the diyas and the countdown. */
+  droneShow(): void;
+  /** Where the drone show is: 'waiting', 'countdown', 'live' or 'done'. */
+  droneState(): 'waiting' | 'countdown' | 'live' | 'done';
   /** Moves the player to (x, z) on the ground, turns them to `yaw` radians and tilts the view to `pitch` radians. */
   teleport(x: number, z: number, yaw: number, pitch?: number): void;
   /** A copy of the gameplay state the prompts use, including the finale burst count. */

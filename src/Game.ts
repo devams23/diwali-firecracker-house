@@ -48,7 +48,8 @@ import { Highlighter } from './ui/Highlight';
 import { Pause } from './ui/Pause';
 import { Finale, FinaleCounter, countsTowardFinale } from './ui/Finale';
 import { Toast } from './ui/Toast';
-import { DiyaCounter } from './ui/DiyaCounter';
+import { DroneBanner } from './ui/DroneBanner';
+import { DroneShow } from './features/DroneShow';
 import { DiyaRow, DIYA_COUNT } from './features/DiyaRow';
 import { SkyLanterns, heldLanternSpot } from './features/SkyLantern';
 import { PhotoMode } from './ui/PhotoMode';
@@ -165,9 +166,12 @@ export class Game {
   private readonly pause: Pause;
   private readonly finale: Finale;
   private readonly toast: Toast;
-  /** The row of unlit diyas the player lights with the agarbatti, and the "दीप n / 11" plaque that counts them. */
+  /** The row of unlit diyas the player lights with the agarbatti. */
   private readonly diyaRow: DiyaRow;
-  private readonly diyaCounter: DiyaCounter;
+  /** Top-centre pill that counts the diyas, then the drone-show countdown, then LIVE. */
+  private readonly droneBanner: DroneBanner;
+  /** The drone show that lighting every diya unlocks. */
+  private readonly droneShow = new DroneShow();
   /** Sky lanterns released with F, rising into the night. */
   private readonly lanterns = new SkyLanterns();
   private readonly hotbar: Hotbar;
@@ -296,13 +300,16 @@ export class Game {
     this.legend = new ControlsLegend(uiEl);
     this.crosshair = new Crosshair(uiEl);
     // Diya row: lit one by one with the agarbatti; the last one sets off a golden celebration and a greeting.
-    this.diyaCounter = new DiyaCounter(uiEl, DIYA_COUNT);
+    this.droneBanner = new DroneBanner(uiEl);
+    scene.add(this.droneShow.object);
+    this.engine.add(this.droneShow);
     this.diyaRow = new DiyaRow(this.fx);
     scene.add(this.diyaRow.object);
     this.engine.add(this.diyaRow);
     scene.add(this.lanterns.object);
     this.engine.add(this.lanterns);
-    this.diyaRow.onLit =(lit, total) => this.diyaCounter.set(lit, total);
+    // The drone show starts its countdown once the last diya is lit.
+    this.diyaRow.onLit = (lit, total) => this.droneShow.notifyLit(lit, total);
     this.diyaRow.onComplete = () => this.toast.show('शुभ दीपावली · Shubh Deepavali', 6);
     this.finale = new Finale(uiEl);
     this.pause = new Pause(uiEl, {
@@ -338,6 +345,8 @@ export class Game {
         place: (kind) => this.debugPlace(kind),
         lightAll: () => this.debugLightAll(),
         lightDiyas: (n) => this.debugLightDiyas(n),
+        droneShow: () => this.droneShow.force(),
+        droneState: () => this.droneShow.state,
         releaseLantern: () => this.releaseLantern(),
         teleport: (x, z, yaw, pitch) => this.debugTeleport(x, z, yaw, pitch),
         state: () => ({ ...this.state }),
@@ -510,7 +519,7 @@ export class Game {
     this.crosshair.show(this.started && !this.paused);
     this.legend.show(this.started && !this.paused);
     this.legend.update(this.clockTime, this.finaleCounter.count);
-    this.diyaCounter.show(this.started && !this.paused);
+    this.droneBanner.update(this.started && !this.paused, this.droneShow.state, this.diyaRow.lit, DIYA_COUNT, this.droneShow.countdown);
     this.highlighter.set(this.focus ? this.focus.root : null);
     this.crosshair.setTarget(this.focus ? this.focus.label(this.state) : null);
   }

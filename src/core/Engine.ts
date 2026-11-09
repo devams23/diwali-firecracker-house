@@ -15,7 +15,7 @@ export interface Updatable {
 /** Largest frame step fed to systems, so a tab switch does not teleport physics or fireworks. */
 const MAX_DT = 0.05;
 /** Violet dusk for the sky fog and background: a festive evening glow, so distant things melt into purple rather than black. */
-const NIGHT_FOG = 0x22194a;
+const NIGHT_FOG = 0x2a1650;
 
 /** Rendering core: renderer, scene, camera, bloom composer and the frame loop. */
 export class Engine {

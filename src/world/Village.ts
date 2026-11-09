@@ -7,6 +7,7 @@ import type { Updatable } from '../core/Engine';
 import { GlowField, type GlowDot } from './glowPoints';
 import { makeTextures, rng, tile, type Textures } from './textures';
 import { INNER_X, SOUTH_INNER_Z } from './Aangan';
+import { Kund } from './Kund';
 
 /** Centre line of the lanes beside the courtyard: east and west at x = LANE_X, south at z = LANE_Z, north at z = -LANE_Z_N. */
 const LANE_X = INNER_X + 6;
@@ -126,6 +127,8 @@ function roofGeometry(): THREE.BufferGeometry {
 /** Builds the village and registers its twinkling lights; add once. */
 export class Village implements Updatable {
   private readonly glow: GlowField;
+  /** The ghat water tank beyond the south lane, seen down the gate's axis. */
+  private readonly kund: Kund;
 
   /** Builds houses, lanes and lights into the scene. */
   constructor(scene: THREE.Scene) {
@@ -238,6 +241,7 @@ export class Village implements Updatable {
 
     this.glow = new GlowField(dots, 0.5);
     scene.add(this.glow.points);
+    this.kund = new Kund(scene, tex);
   }
 
   /** Lane strips on the ground and a lamp post every LAMP_SPACING metres, each with a warm glow at its top. */
@@ -304,5 +308,6 @@ export class Village implements Updatable {
   /** Twinkles the village lights. */
   update(dt: number, t: number): void {
     this.glow.update(dt, t);
+    this.kund.update(dt, t);
   }
 }

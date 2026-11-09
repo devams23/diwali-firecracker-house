@@ -74,8 +74,18 @@ cracker 3 m ahead), `lightAll()`, `teleport(x, z, yaw, pitch)` and `state()`. No
 - **Layout:** `src/Game.ts` builds the village and runs the per-frame loop. `src/crackers/` holds the cracker
   classes, their catalogue and placement. `src/fx/` holds the shared sparks, smoke, light flashes, camera shake and
   aerial bursts. `src/world/` builds the aangan, the house and the props. `src/ui/` holds the DOM overlays.
-- **Procedural assets:** all models, textures and sounds are generated in code. No image, model or audio files
-  ship with the game.
-- **Audio:** sounds are synthesised with the Web Audio API (oscillators and noise buffers).
+- **Procedural assets:** the village models, textures and sound effects are generated in code. The only shipped
+  media are the hand model and the background music (see Credits).
+- **Audio:** sound effects are synthesised with the Web Audio API (oscillators and noise buffers). The background
+  music is a playlist of three MP3s in `public/audio/`, played softly through a lowpass on the same master bus.
 - **Screenshots:** `screenshots/` holds the frames the Playwright run captures (`hands.png`, `aangan.png`,
   `burst.png`, `sky.png`). They are regenerated on each run.
+
+## Credits
+
+- **Background music:** Ranjit Makkuni (sitar) with Mithilesh Jha (tabla): Raga Kaushi Kanra, Raga Bag Bhim and
+  Raga Sri, from Wikimedia Commons under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
+  Sources: [Kaushi Kanra](https://commons.wikimedia.org/wiki/File:RanjitMakkuniRagaKaushiKanra.ogg),
+  [Bag Bhim](https://commons.wikimedia.org/wiki/File:RanjitMakkuniRagaBagBhim.ogg),
+  [Sri](https://commons.wikimedia.org/wiki/File:RagaSri_,_Ranjit_Makkuni.ogg). The recordings were loudness-
+  matched, given short fades and re-encoded to MP3; these adapted files are shared under the same licence.

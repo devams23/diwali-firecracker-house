@@ -9,7 +9,7 @@ import { PALETTE } from '../core/palette';
 import { CLAY, bowlGeometry, flameTexture, flicker } from '../items/Diya';
 
 /** Number of diyas in the row. */
-export const DIYA_COUNT = 11;
+export const DIYA_COUNT = 12;
 /** Half the length of the row, in metres: the first and last diya sit this far either side of the centre. */
 const ROW_HALF_SPAN = 4.6;
 /** Depth (z) of the row: just in front of the verandah plinth, whose front edge is at z = -7. */
@@ -143,8 +143,11 @@ export class DiyaRow implements Updatable {
     if (!d || d.age >= 0) return;
     d.age = 0;
     this.litCount++;
-    // Each chime is pitched a little differently so the row sounds like a tune rather than one repeated note.
-    this.fx.audio.play('chime', this.flamePos(i, this.spot), { pitch: 0.9 + 0.06 * (i % 6), volume: 0.8 });
+    // A soft flame-catching whoomp plus a faint ghungroo shimmer, each varied a little so no two lamps sound alike
+    // (the old high, sharp chime repeated like a ticking clock).
+    const at = this.flamePos(i, this.spot);
+    this.fx.audio.play('whoomp', at, { pitch: 0.85 + 0.05 * (i % 5) + Math.random() * 0.06, volume: 0.7 });
+    this.fx.audio.play('manjira', at, { pitch: 0.9 + Math.random() * 0.2, volume: 0.5 });
     this.fx.sparks.emit({
       position: this.flamePos(i, this.spot),
       speed: [0.2, 0.7],
@@ -196,8 +199,12 @@ export class DiyaRow implements Updatable {
   /** Bell and shankh together, then the shimmer begins. */
   private celebrate(): void {
     const centre = this.spot.set(0, 1, ROW_Z);
-    this.fx.audio.play('bell', centre, { volume: 0.9 });
-    this.fx.audio.play('shankh', centre, { volume: 0.7 });
+    // A short festive celebration of about 3.5 s: a shehnai phrase over a dhol and manjira rhythm, a soft conch and
+    // a few distant cheering swells. All kept gentle.
+    this.fx.audio.play('shehnai', centre, { volume: 0.8 });
+    this.fx.audio.play('dhol', centre, { volume: 0.7 });
+    this.fx.audio.play('shankh', centre, { volume: 0.45 });
+    this.fx.audio.play('crowd', centre, { volume: 0.8 });
     this.shimmerLeft = SHIMMER_SECONDS;
     this.shimmerClock = 0;
     this.onComplete?.();
