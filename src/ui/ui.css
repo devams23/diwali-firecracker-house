@@ -1,7 +1,7 @@
 /*
  * Diwali UI styling: the opening card, the cracker hotbar, the prompt chip, the pause panel, the toast and the finale
  * greeting. Warm browns and gold only; no neon, no glassmorphism, no emoji, no arcade text.
- * Fonts: Tiro Devanagari Hindi for the Hindi lines, Cormorant Garamond for display, Inter for controls.
+ * Fonts: Fraunces for display and labels, Yatra One for the big Devanagari greeting, Noto Serif Devanagari for Hindi text, Inter for keycaps and controls.
  */
 
 :root {
@@ -11,10 +11,10 @@
   --ui-chip: rgba(40, 24, 14, 0.78);
   --ui-panel: rgba(34, 20, 12, 0.9);
   --ui-hairline: rgba(201, 162, 74, 0.55);
-  --ui-display: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
+  --ui-display: 'Fraunces', Georgia, serif;
   --ui-deva-display: 'Yatra One', 'Tiro Devanagari Hindi', serif;
-  --ui-serif: 'Cormorant Garamond', 'Times New Roman', serif;
-  --ui-deva: 'Tiro Devanagari Hindi', 'Noto Serif Devanagari', serif;
+  --ui-serif: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
+  --ui-deva: 'Noto Serif Devanagari', 'Tiro Devanagari Hindi', serif;
   --ui-sans: 'Inter', system-ui, sans-serif;
 }
 
@@ -250,7 +250,7 @@
 
 .hotbar-name-en {
   font-family: var(--ui-serif);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--ui-ink);
 }
@@ -303,8 +303,10 @@
   left: 5px;
   top: 2px;
   font-family: var(--ui-sans);
-  font-size: 10px;
-  color: var(--ui-ink-dim);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-ink);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 
 .hb-count {
@@ -313,8 +315,9 @@
   bottom: 2px;
   font-family: var(--ui-sans);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 700;
   color: var(--ui-ink);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 
 /* An empty kind keeps its place but its icon and count are dimmed. */
@@ -373,7 +376,7 @@
 
 .prompt-text {
   font-family: var(--ui-serif);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--ui-ink);
   white-space: nowrap;
@@ -452,7 +455,9 @@
   background: var(--ui-chip);
   border: 1px solid var(--ui-hairline);
   font-family: var(--ui-sans);
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
   opacity: 0;
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
@@ -489,7 +494,7 @@
   margin: 0 0 4px;
   font-family: var(--ui-serif);
   font-weight: 600;
-  font-size: 28px;
+  font-size: 26px;
   color: var(--ui-ink);
 }
 
@@ -497,6 +502,7 @@
 .pause-sound {
   font-family: var(--ui-sans);
   font-size: 14px;
+  font-weight: 600;
   padding: 9px 12px;
   border-radius: 8px;
   border: 1px solid var(--ui-hairline);
@@ -520,8 +526,9 @@
   margin: 6px 0 0;
   padding: 0 0 0 16px;
   font-size: 13px;
+  font-weight: 500;
   line-height: 1.6;
-  color: var(--ui-ink-dim);
+  color: var(--ui-ink);
 }
 
 /* ---------- Finale greeting (top centre) ---------- */
@@ -546,7 +553,7 @@
 }
 
 .finale-hi {
-  font-family: var(--ui-deva);
+  font-family: var(--ui-deva-display);
   font-size: clamp(34px, 7vw, 68px);
   color: var(--ui-gold);
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
@@ -626,9 +633,11 @@
   top: -10px;
   white-space: nowrap;
   color: #f6e7b8;
-  font-size: 14px;
+  font-family: var(--ui-serif);
+  font-size: 15px;
+  font-weight: 600;
   line-height: 20px;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
   opacity: 0;
   transition: opacity 0.12s ease;
 }
