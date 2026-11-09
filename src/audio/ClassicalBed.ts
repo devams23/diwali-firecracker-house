@@ -43,17 +43,19 @@ export function startClassicalBed(ctx: AudioContext, out: AudioNode): void {
   level.connect(out);
 
   /** Builds one player wired into the filter, silent until it is given a turn. */
-  const makeVoice = (): Voice => {
+  // `preload` is 'auto' for the first player and 'metadata' for the second, so the MP3 is downloaded once at start;
+  // by the first loop point the browser has it cached for the second player.
+  const makeVoice = (preload: 'auto' | 'metadata'): Voice => {
     const el = new Audio(import.meta.env.BASE_URL + TRACK);
     el.crossOrigin = 'anonymous';
-    el.preload = 'auto';
+    el.preload = preload;
     const gain = ctx.createGain();
     gain.gain.value = 0;
     ctx.createMediaElementSource(el).connect(gain);
     gain.connect(soften);
     return { el, gain };
   };
-  const voices = [makeVoice(), makeVoice()];
+  const voices = [makeVoice('auto'), makeVoice('metadata')];
   let active = 0;
 
   /** Ramps its gain linearly to `to` over `secs`. */
