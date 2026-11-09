@@ -8,7 +8,7 @@ import type { FxContext } from './FxContext';
 import type { EmitOptions } from './SparkSystem';
 
 /** Shapes a shell can burst into. */
-export type BurstStyle = 'peony' | 'willow' | 'crackle' | 'ring' | 'chrysanthemum' | 'crossette' | 'palm';
+export type BurstStyle = 'peony' | 'willow' | 'crackle' | 'ring' | 'chrysanthemum' | 'crossette' | 'palm' | 'doubleRing';
 
 /** Optional tuning for one burst: spark count and size range of the main effect. */
 export interface BurstTune {
@@ -310,6 +310,11 @@ export function aerialBurst(
       break;
     case 'crossette':
       emitCrossette(fx, at, palette, scale);
+      break;
+    case 'doubleRing':
+      // Two concentric rings in contrasting colours: a wide one in the first colour, a tight one in the second.
+      emitRing(fx, at, [palette[0]], Math.round(RING_SPARKS * 0.8), scale);
+      emitRing(fx, at, [palette[1] ?? palette[0]], Math.round(RING_SPARKS * 0.5), scale * 0.55);
       break;
     case 'palm':
       emitPalm(fx, at, palette, scale);

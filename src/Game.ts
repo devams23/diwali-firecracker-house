@@ -31,7 +31,8 @@ import { SmokeSystem } from './fx/SmokeSystem';
 import { FlashLights } from './fx/FlashLights';
 import { CameraShake } from './fx/CameraShake';
 import type { FxContext } from './fx/FxContext';
-import { aerialBurst, aerialBurstTick, drainQueue, SKY_PALETTES, type BurstStyle } from './fx/aerialBurst';
+import { aerialBurstTick, drainQueue, type BurstStyle } from './fx/aerialBurst';
+import { launchShell, neighbourShowTick, pickBurstStyle, pickLanePoint, pickNeighbourPalette, startFountain } from './fx/neighbourShow';
 import { AudioEngine } from './audio/AudioEngine';
 import { CrackerManager } from './crackers/CrackerManager';
 import { addPickProxy } from './crackers/pickProxy';
@@ -100,8 +101,9 @@ const FINALE_SPREAD = 40;
 const FINALE_HEIGHT_MIN = 45;
 /** Extra random height added to FINALE_HEIGHT_MIN, in metres. */
 const FINALE_HEIGHT_RANGE = 25;
-/** Burst shapes the finale draws from. */
-const FINALE_STYLES: BurstStyle[] = ['peony', 'willow', 'crackle', 'ring'];
+/** Seconds between the lane fountains the neighbours light during the finale, as a base and a random extra. */
+const FOUNTAIN_GAP_MIN = 1.2;
+const FOUNTAIN_GAP_RANGE = 1.5;
 const TAU = Math.PI * 2;
 /** Shared zero vector used as the spawn point for hand-held sparklers, which are attached to the hand at once. */
 const ORIGIN = new THREE.Vector3();
@@ -180,6 +182,12 @@ export class Game {
   /** Scratch point where a sky lantern is held up before it is released. */
   private readonly lanternSpot = new THREE.Vector3();
   private readonly finaleAt = new THREE.Vector3();
+  /** Scratch point for a lane fountain, and the seconds until the next one is lit. */
+  private readonly fountainAt = new THREE.Vector3();
+  private nextFountainIn = 0;
+  /** Style and palette of the last neighbour burst, so the next one differs. */
+  private lastStyle: BurstStyle | undefined;
+  private lastPalette: number[] | undefined;
   /** Plays a far bang once its delay has passed; a field so the per-frame drain does not allocate a closure. */
   private readonly playFar = (e: FarBang): void => {
     this.audio.play('farBoom', e.pos);
@@ -431,6 +439,7 @@ export class Game {
   private frame(dt: number, t: number): void {
     this.clockTime = t;
     aerialBurstTick(dt);
+    neighbourShowTick(this.fx, dt);
     drainQueue(this.farQueue, dt, this.playFar);
     this.syncPause();
     this.stepIntroWalk(dt);
@@ -684,6 +693,12 @@ export class Game {
     if (this.finaleTime <= 0) return;
     this.finaleTime -= dt;
     this.nextShowIn -= dt;
+    this.nextFountainIn -= dt;
+    // Now and then a neighbour lights an anar fountain on a lane, so the street is alive too.
+    if (this.nextFountainIn <= 0) {
+      startFountain(this.fx, pickLanePoint(Math.random, this.fountainAt));
+      this.nextFountainIn = FOUNTAIN_GAP_MIN + Math.random() * FOUNTAIN_GAP_RANGE;
+    }
     if (this.nextShowIn <= 0) {
       this.neighbourBurst();
       this.nextShowIn = FINALE_GAP_MIN + Math.random() * FINALE_GAP_RANGE;
@@ -696,9 +711,12 @@ export class Game {
     const dist = FINALE_NEAR + Math.random() * FINALE_SPREAD;
     const height = FINALE_HEIGHT_MIN + Math.random() * FINALE_HEIGHT_RANGE;
     this.finaleAt.set(Math.sin(a) * dist, height, -Math.cos(a) * dist);
-    const palette = SKY_PALETTES[Math.floor(Math.random() * SKY_PALETTES.length)];
-    const style = FINALE_STYLES[Math.floor(Math.random() * FINALE_STYLES.length)];
-    aerialBurst(this.fx, this.finaleAt, style, palette, { scale: 1.4, multiBreak: Math.random() < 0.35 });
+    const palette = pickNeighbourPalette(Math.random, this.lastPalette);
+    const style = pickBurstStyle(Math.random, this.lastStyle);
+    this.lastPalette = palette;
+    this.lastStyle = style;
+    // The shell climbs as a gold comet before it breaks.
+    launchShell(this.fx, this.finaleAt, style, palette, { scale: 1.4, multiBreak: Math.random() < 0.35 });
   }
 
   /**
