@@ -27,7 +27,12 @@ export type SoundName =
   | 'earRing'
   | 'chime'
   | 'bell'
-  | 'shankh';
+  | 'shankh'
+  | 'whoomp'
+  | 'manjira'
+  | 'shehnai'
+  | 'dhol'
+  | 'crowd';
 
 /** Handle returned by play(); safe to call at any time, including after the sound has finished. */
 export interface SoundHandle {

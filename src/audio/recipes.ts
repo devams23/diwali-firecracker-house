@@ -468,6 +468,150 @@ function shankh(ctx: AudioContext, out: AudioNode, o: RecipeOpts): SoundHandle {
   return v.handle();
 }
 
+/**
+ * Soft "whoomp" of a diya flame catching: a low sine that sags in pitch plus a breath of lowpassed noise, both
+ * rounded and quiet. `pitch` varies it a little from lamp to lamp.
+ */
+function whoomp(ctx: AudioContext, out: AudioNode, o: RecipeOpts): SoundHandle {
+  const v = new Voice(ctx, out, o.onEnd);
+  const t = ctx.currentTime;
+  strike(v.gain.gain, t, 0.4 * o.volume, 0.03, 0.5);
+  // Warm body: a sine that drops from 170 Hz to 85 Hz as the flame settles.
+  const body = oscillator(ctx, v, 'sine', 170 * o.pitch);
+  body.frequency.exponentialRampToValueAtTime(85 * o.pitch, t + 0.35);
+  body.connect(v.gain);
+  body.start(t);
+  body.stop(t + 0.55);
+  // Breath of the flame: noise through a lowpass that opens then closes.
+  const n = noise(ctx, v, false, 0.7);
+  const lp = biquad(ctx, v, 'lowpass', 500, 0.7);
+  lp.frequency.linearRampToValueAtTime(1400, t + 0.08);
+  lp.frequency.linearRampToValueAtTime(300, t + 0.45);
+  const ng = v.track(ctx.createGain());
+  strike(ng.gain, t, 0.35, 0.04, 0.45);
+  n.connect(lp).connect(ng).connect(v.gain);
+  n.start(t, Math.random());
+  n.stop(t + 0.5);
+  return v.handle();
+}
+
+/**
+ * Manjira / ghungroo shimmer: a handful of tiny, high, inharmonic sine glints scattered over about 0.35 s, very
+ * quiet, so it sparkles rather than rings. Each call scatters differently.
+ */
+function manjira(ctx: AudioContext, out: AudioNode, o: RecipeOpts): SoundHandle {
+  const v = new Voice(ctx, out, o.onEnd);
+  const t = ctx.currentTime;
+  v.gain.gain.value = 0.16 * o.volume;
+  for (let k = 0; k < 5; k++) {
+    const at = t + Math.random() * 0.25;
+    const f = (3600 + Math.random() * 2600) * o.pitch;
+    const dur = 0.12 + Math.random() * 0.1;
+    const osc = oscillator(ctx, v, 'sine', f);
+    const g = v.track(ctx.createGain());
+    strike(g.gain, at, 0.5, 0.002, dur);
+    osc.connect(g).connect(v.gain);
+    osc.start(at);
+    osc.stop(at + dur + 0.05);
+  }
+  return v.handle();
+}
+
+/**
+ * Shehnai phrase: one sawtooth, bandpassed to a reedy nasal tone, with vibrato, gliding up a Bhairav-style scale in
+ * about 3 s and settling on a held top note. Kept quiet.
+ */
+function shehnai(ctx: AudioContext, out: AudioNode, o: RecipeOpts): SoundHandle {
+  const v = new Voice(ctx, out, o.onEnd);
+  const t = ctx.currentTime;
+  const dur = 3.4;
+  const g = v.gain.gain;
+  g.setValueAtTime(0, t);
+  g.linearRampToValueAtTime(0.2 * o.volume, t + 0.15);
+  g.setValueAtTime(0.2 * o.volume, t + 2.6);
+  g.linearRampToValueAtTime(0, t + dur);
+  // Rising phrase (Hz): Sa, komal Re, Ga, Pa, Dha, then the upper Sa held.
+  const notes = [294, 311, 370, 440, 466, 587];
+  const times = [0, 0.4, 0.8, 1.3, 1.8, 2.3];
+  const osc = oscillator(ctx, v, 'sawtooth', notes[0] * o.pitch);
+  notes.forEach((f, i) => {
+    // Each note slides in over 80 ms, like a reed player's glide.
+    osc.frequency.setValueAtTime(i ? notes[i - 1] * o.pitch : f * o.pitch, t + times[i]);
+    osc.frequency.linearRampToValueAtTime(f * o.pitch, t + times[i] + 0.08);
+  });
+  const vib = oscillator(ctx, v, 'sine', 5.6);
+  const vibDepth = v.track(ctx.createGain());
+  vibDepth.gain.value = 6;
+  vib.connect(vibDepth).connect(osc.frequency);
+  const bp = biquad(ctx, v, 'bandpass', 1500, 1.6);
+  osc.connect(bp).connect(v.gain);
+  for (const s of [osc, vib]) {
+    s.start(t);
+    s.stop(t + dur + 0.05);
+  }
+  return v.handle();
+}
+
+/**
+ * Dhol rhythm with manjira: a bass thump on the beat and a bright slap on the off-beat, a 3 s pattern of 12 steps,
+ * with tiny cymbal glints on every step. Soft enough to sit under the shehnai.
+ */
+function dhol(ctx: AudioContext, out: AudioNode, o: RecipeOpts): SoundHandle {
+  const v = new Voice(ctx, out, o.onEnd);
+  const t = ctx.currentTime;
+  v.gain.gain.value = 0.5 * o.volume;
+  // 1 = bass (dagga), 2 = slap (tabli), 0 = rest; a lively Keherwa-like pattern.
+  const pattern = [1, 0, 2, 0, 1, 1, 2, 0, 1, 0, 2, 2];
+  const step = 0.25;
+  pattern.forEach((hit, i) => {
+    const at = t + i * step;
+    if (hit === 1) {
+      const osc = oscillator(ctx, v, 'sine', 120 * o.pitch);
+      osc.frequency.setValueAtTime(120 * o.pitch, at);
+      osc.frequency.exponentialRampToValueAtTime(60 * o.pitch, at + 0.15);
+      const g = v.track(ctx.createGain());
+      strike(g.gain, at, 0.8, 0.004, 0.22);
+      osc.connect(g).connect(v.gain);
+      osc.start(at);
+      osc.stop(at + 0.25);
+    } else if (hit === 2) {
+      const n = noise(ctx, v, false, 1);
+      const bp = biquad(ctx, v, 'bandpass', 1800, 1.2);
+      const g = v.track(ctx.createGain());
+      strike(g.gain, at, 0.35, 0.002, 0.09);
+      n.connect(bp).connect(g).connect(v.gain);
+      n.start(at, Math.random());
+      n.stop(at + 0.12);
+    }
+    // Manjira glint on every step, very faint.
+    const osc = oscillator(ctx, v, 'sine', 5200 + (i % 3) * 700);
+    const g = v.track(ctx.createGain());
+    strike(g.gain, at, 0.05, 0.002, 0.08);
+    osc.connect(g).connect(v.gain);
+    osc.start(at);
+    osc.stop(at + 0.12);
+  });
+  return v.handle();
+}
+
+/** Distant cheering crowd: three soft swells of bandpassed noise over about 3.4 s, low and far away. */
+function crowd(ctx: AudioContext, out: AudioNode, o: RecipeOpts): SoundHandle {
+  const v = new Voice(ctx, out, o.onEnd);
+  const t = ctx.currentTime;
+  const n = noise(ctx, v, true, 0.9);
+  const bp = biquad(ctx, v, 'bandpass', 900, 0.8);
+  n.connect(bp).connect(v.gain);
+  v.gain.gain.setValueAtTime(0, t);
+  for (const [at, peak] of [[0.2, 0.09], [1.3, 0.12], [2.3, 0.08]]) {
+    v.gain.gain.linearRampToValueAtTime(peak * o.volume, t + at + 0.4);
+    v.gain.gain.linearRampToValueAtTime(0.01, t + at + 0.95);
+  }
+  v.gain.gain.linearRampToValueAtTime(0, t + 3.6);
+  n.start(t);
+  n.stop(t + 3.7);
+  return v.handle();
+}
+
 /** Recipe for every named sound; AudioEngine looks sounds up here by name. */
 export const RECIPES: Record<SoundName, Recipe> = {
   fuse,
@@ -490,4 +634,9 @@ export const RECIPES: Record<SoundName, Recipe> = {
   chime,
   bell,
   shankh,
+  whoomp,
+  manjira,
+  shehnai,
+  dhol,
+  crowd,
 };
