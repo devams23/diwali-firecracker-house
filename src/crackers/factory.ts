@@ -13,6 +13,7 @@ import { HandHeld } from './HandHeld';
 import { Rocket } from './Rocket';
 import { Ladi } from './Ladi';
 import { SkyShot } from './SkyShot';
+import { addPlacedMarker, GROUND_SCALE } from './placedMarker';
 
 /**
  * Creates a cracker of `kind` standing at `position` and turned by `yaw` radians about the vertical axis.
@@ -55,6 +56,14 @@ export function createCracker(kind: CrackerKind, fx: FxContext, position: THREE.
       const missing: never = kind;
       throw new Error(`Cracker kind "${String(missing)}" is not implemented`);
     }
+  }
+  // Ground kinds get a glowing marker while unlit and a size boost, so they stand out on the floor at night.
+  const scale = GROUND_SCALE[kind];
+  if (scale) {
+    const height = new THREE.Box3().setFromObject(c.object).getSize(new THREE.Vector3()).y;
+    const cracker = c;
+    addPlacedMarker(c.object, height, () => cracker.timer.phase === 'idle');
+    c.object.scale.setScalar(scale);
   }
   c.object.position.copy(position);
   c.object.rotation.y = yaw;
