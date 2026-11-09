@@ -48,7 +48,7 @@ export function plasterMaterial(tex: Textures, rx: number): THREE.MeshStandardMa
     color: 0xfff0dc,
     emissive: 0xffb878,
     emissiveMap: map,
-    emissiveIntensity: 0.32,
+    emissiveIntensity: 0.12,
     roughness: 0.92,
     metalness: 0,
   });
@@ -58,13 +58,13 @@ export function plasterMaterial(tex: Textures, rx: number): THREE.MeshStandardMa
 const BAND_SAFFRON = new THREE.MeshStandardMaterial({
   color: 0xff9a1e,
   emissive: 0xff7a10,
-  emissiveIntensity: 0.55,
+  emissiveIntensity: 0.3,
   roughness: 0.85,
 });
 const BAND_INDIGO = new THREE.MeshStandardMaterial({
   color: 0x3a4fc0,
   emissive: 0x2a3ca8,
-  emissiveIntensity: 0.5,
+  emissiveIntensity: 0.3,
   roughness: 0.85,
 });
 

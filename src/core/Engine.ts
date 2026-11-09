@@ -15,7 +15,7 @@ export interface Updatable {
 /** Largest frame step fed to systems, so a tab switch does not teleport physics or fireworks. */
 const MAX_DT = 0.05;
 /** Violet dusk for the sky fog and background: a festive evening glow, so distant things melt into purple rather than black. */
-const NIGHT_FOG = 0x3c2a64;
+const NIGHT_FOG = 0x22194a;
 
 /** Rendering core: renderer, scene, camera, bloom composer and the frame loop. */
 export class Engine {
@@ -41,14 +41,14 @@ export class Engine {
     this.renderer.setPixelRatio(pixelRatio);
     this.renderer.setSize(width, height);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.5;
+    this.renderer.toneMappingExposure = 1.15;
     // Shadows are off for performance; the diyas provide fake local light instead.
     this.renderer.shadowMap.enabled = false;
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(NIGHT_FOG);
-    this.scene.fog = new THREE.FogExp2(NIGHT_FOG, 0.009);
+    this.scene.fog = new THREE.FogExp2(NIGHT_FOG, 0.006);
 
     this.camera = new THREE.PerspectiveCamera(70, width / height, 0.05, 400);
 
@@ -56,7 +56,7 @@ export class Engine {
     this.composer.setPixelRatio(pixelRatio);
     this.composer.setSize(width, height);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(width, height), 1.15, 0.7, 0.7);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(width, height), 0.45, 0.35, 0.95);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 

@@ -23,7 +23,7 @@ const WALL_COLORS = [0xf2ead0, 0xf6c9a0, 0xf2d060, 0xf0a0a8, 0xb8e0c0, 0xa8d0f0]
 /** Roof tints: terracotta tiles and a few dark slate ones. */
 const ROOF_COLORS = [0xb85a3a, 0xa8482e, 0xc8683c, 0x6a4a52];
 /** Eave fairy light colours: gold, saffron, rose, green, white. */
-const FAIRY = [0xffc04a, 0xff8a1a, 0xff4a6a, 0x4cd47a, 0xfff0d0].map((h) => new THREE.Color(h).multiplyScalar(1.7));
+const FAIRY = [0xffc04a, 0xff8a1a, 0xff4a6a, 0x4cd47a, 0xfff0d0].map((h) => new THREE.Color(h).multiplyScalar(1.3));
 /** Warm window glow, above 1 so the bloom picks it up. */
 const WINDOW_GLOW = new THREE.Color(1.9, 1.3, 0.6);
 
@@ -222,7 +222,7 @@ export class Village implements Updatable {
       m.makeTranslation(sp.x, LAMP_H / 2, sp.z);
       poles.setMatrixAt(i, m);
       // A large soft halo plus a small hot core, so the lamp reads as a real light on the lane.
-      dots.push({ pos: new THREE.Vector3(sp.x, LAMP_H + 0.1, sp.z), color: new THREE.Color(1.6, 1.1, 0.5), size: 1.4 });
+      dots.push({ pos: new THREE.Vector3(sp.x, LAMP_H + 0.1, sp.z), color: new THREE.Color(1.3, 0.9, 0.4), size: 0.7 });
       dots.push({ pos: new THREE.Vector3(sp.x, LAMP_H + 0.1, sp.z), color: new THREE.Color(3, 2.6, 1.8), size: 0.45 });
     });
     poles.frustumCulled = false;
