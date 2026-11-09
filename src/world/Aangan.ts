@@ -237,14 +237,74 @@ export function buildAangan(
   world: CollisionWorld,
   tex: Textures,
 ): { diyaSpots: THREE.Vector3[] } {
-  // Ground: beaten earth over a 60 m plot; the repeat keeps the mottling fine up close. A clone
-  // carries its own repeat, so the shared earth texture is left untouched for other surfaces.
+  // Ground: smooth ochre lipai over the wide plot, so the village floor is light enough to read at night.
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(160, 160),
-    new THREE.MeshStandardMaterial({ map: tile(tex.earth, 32, 32), roughness: 0.95, metalness: 0 }),
+    new THREE.MeshStandardMaterial({
+      map: tile(tex.lipai, 40, 40),
+      emissive: 0xff9a50,
+      emissiveMap: tile(tex.lipai, 40, 40),
+      emissiveIntensity: 0.12,
+      roughness: 0.95,
+      metalness: 0,
+    }),
   );
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
+
+  // Courtyard floor: laid terracotta flagstones (about 0.9 x 0.6 m each) just above the lipai, with a faint self-lit copy.
+  const cw = INNER_X * 2;
+  const cd = SOUTH_INNER_Z - NORTH_Z;
+  const pavingMap = tile(tex.paving, cw / 2.7, cd / 2.4);
+  const courtyard = new THREE.Mesh(
+    new THREE.PlaneGeometry(cw, cd),
+    new THREE.MeshStandardMaterial({
+      map: pavingMap,
+      emissive: 0xff8a50,
+      emissiveMap: pavingMap,
+      emissiveIntensity: 0.16,
+      roughness: 0.9,
+      metalness: 0,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    }),
+  );
+  courtyard.rotation.x = -Math.PI / 2;
+  courtyard.position.set(0, 0.01, (SOUTH_INNER_Z + NORTH_Z) / 2);
+  scene.add(courtyard);
+  // Cream kerb along the inside foot of the walls: a low raised plinth edge framing the paving.
+  const kerbMat = new THREE.MeshStandardMaterial({ color: 0xf2dcc0, roughness: 0.9, metalness: 0 });
+  for (const [kw, kd, kx, kz] of [
+    [cw, 0.16, 0, SOUTH_INNER_Z - 0.08],
+    [0.16, cd, INNER_X - 0.08, (SOUTH_INNER_Z + NORTH_Z) / 2],
+    [0.16, cd, -INNER_X + 0.08, (SOUTH_INNER_Z + NORTH_Z) / 2],
+  ] as const) {
+    const kerb = new THREE.Mesh(new THREE.BoxGeometry(kw, 0.07, kd), kerbMat);
+    kerb.position.set(kx, 0.035, kz);
+    scene.add(kerb);
+  }
+
+  // Big rangoli decal at the centre, around the tulsi chaura: vivid, with a slight emissive so it reads at night.
+  const rangoli = new THREE.Mesh(
+    new THREE.PlaneGeometry(8, 8),
+    new THREE.MeshStandardMaterial({
+      map: tex.bigRangoli,
+      emissive: 0xffffff,
+      emissiveMap: tex.bigRangoli,
+      emissiveIntensity: 0.3,
+      transparent: true,
+      depthWrite: false,
+      roughness: 0.9,
+      metalness: 0,
+      polygonOffset: true,
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -3,
+    }),
+  );
+  rangoli.rotation.x = -Math.PI / 2;
+  rangoli.position.set(0, 0.02, 0);
+  scene.add(rangoli);
 
   // Walls: east and west, the two short returns beside the house, and the south wall split around the gate.
   // They are low parapets, so the player sees over them into the village. Each is also a collision box.

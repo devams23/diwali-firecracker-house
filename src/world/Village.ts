@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import type { Updatable } from '../core/Engine';
 import { GlowField, type GlowDot } from './glowPoints';
-import { rng } from './textures';
+import { makeTextures, rng, tile, type Textures } from './textures';
 import { INNER_X, SOUTH_INNER_Z } from './Aangan';
 
 /** Centre line of the lanes beside the courtyard: east and west at x = LANE_X, south at z = LANE_Z, north at z = -LANE_Z_N. */
@@ -129,6 +129,8 @@ export class Village implements Updatable {
 
   /** Builds houses, lanes and lights into the scene. */
   constructor(scene: THREE.Scene) {
+    // makeTextures is memoised, so this shares the canvases Game already built.
+    const tex = makeTextures();
     const houses = houseLayout();
     const r = rng(616);
     const m = new THREE.Matrix4();
@@ -212,24 +214,29 @@ export class Village implements Updatable {
     if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
     if (roofs.instanceColor) roofs.instanceColor.needsUpdate = true;
 
-    this.buildLanes(scene, dots);
+    this.buildLanes(scene, dots, tex);
 
     this.glow = new GlowField(dots, 0.5);
     scene.add(this.glow.points);
   }
 
   /** Lane strips on the ground and a lamp post every LAMP_SPACING metres, each with a warm glow at its top. */
-  private buildLanes(scene: THREE.Scene, dots: GlowDot[]): void {
-    const strip = new THREE.MeshStandardMaterial({
-      color: 0xb48a60,
-      roughness: 1,
-      emissive: 0x3a2412,
-      emissiveIntensity: 0.5,
-      // Pulled toward the camera so the thin strip never z-fights the ground at a distance.
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
-    });
+  private buildLanes(scene: THREE.Scene, dots: GlowDot[], tex: Textures): void {
+    // Lane paving: terracotta flagstones with a faint self-lit copy; each strip gets its own repeat so flags stay ~0.9 m.
+    const stripMat = (w: number, d: number): THREE.MeshStandardMaterial => {
+      const map = tile(tex.paving, w / 2.7, d / 2.4);
+      return new THREE.MeshStandardMaterial({
+        map,
+        emissive: 0xff8a50,
+        emissiveMap: map,
+        emissiveIntensity: 0.16,
+        roughness: 1,
+        // Pulled toward the camera so the thin strip never z-fights the ground at a distance.
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      });
+    };
     const lanes: { x: number; z: number; w: number; d: number }[] = [
       { x: LANE_X, z: 5, w: LANE_W, d: 90 },
       { x: -LANE_X, z: 5, w: LANE_W, d: 90 },
@@ -237,13 +244,13 @@ export class Village implements Updatable {
       { x: 0, z: -LANE_Z_N, w: 90, d: LANE_W },
     ];
     for (const l of lanes) {
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(l.w, l.d), strip);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(l.w, l.d), stripMat(l.w, l.d));
       mesh.rotation.x = -Math.PI / 2;
       mesh.position.set(l.x, 0.012, l.z);
       scene.add(mesh);
     }
     // A short path from the gate across to the south lane.
-    const path = new THREE.Mesh(new THREE.PlaneGeometry(2.4, LANE_Z - SOUTH_INNER_Z), strip);
+    const path = new THREE.Mesh(new THREE.PlaneGeometry(2.4, LANE_Z - SOUTH_INNER_Z), stripMat(2.4, LANE_Z - SOUTH_INNER_Z));
     path.rotation.x = -Math.PI / 2;
     path.position.set(0, 0.013, (LANE_Z + SOUTH_INNER_Z) / 2);
     scene.add(path);

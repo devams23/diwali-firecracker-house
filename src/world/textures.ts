@@ -14,15 +14,27 @@ const WOOD: Rgb = [90, 59, 34];
 const TERRACOTTA: Rgb = [138, 74, 46];
 
 /** The five canvas textures used across the village. */
-export type Textures = ReturnType<typeof makeTextures>;
+export type Textures = ReturnType<typeof buildTextures>;
 
 /** Builds every procedural texture; call once and share the result across the world builders. */
-export function makeTextures(): {
+export function makeTextures(): Textures {
+  cached ??= buildTextures();
+  return cached;
+}
+
+/** Shared result of the first makeTextures() call. */
+let cached: Textures | undefined;
+
+/** The actual canvas painting behind makeTextures(). */
+function buildTextures(): {
   plaster: THREE.CanvasTexture;
   earth: THREE.CanvasTexture;
   tiles: THREE.CanvasTexture;
   wood: THREE.CanvasTexture;
   rangoli: THREE.CanvasTexture;
+  paving: THREE.CanvasTexture;
+  lipai: THREE.CanvasTexture;
+  bigRangoli: THREE.CanvasTexture;
 } {
   const plasterCanvas = paint(512, makePlasterShade());
   drawCracks(plasterCanvas.getContext('2d')!, 512, 7);
@@ -40,7 +52,23 @@ export function makeTextures(): {
   rangoliCanvas.width = rangoliCanvas.height = 1024;
   drawRangoli(rangoliCanvas.getContext('2d')!, 1024);
 
+  // Courtyard and lane paving: laid sandstone flags in warm ochre and rose with dark mortar joints.
+  const pavingCanvas = document.createElement('canvas');
+  pavingCanvas.width = pavingCanvas.height = 512;
+  drawPaving(pavingCanvas.getContext('2d')!, 512, 23);
+
+  // Lipai: smooth mud-plastered ochre floor with soft hand-smoothed mottling, for the wider village ground.
+  const lipaiCanvas = paint(512, makeLipaiShade());
+
+  // Big festive courtyard rangoli: the eight-fold design inside a ring of coloured lotus petals.
+  const bigCanvas = document.createElement('canvas');
+  bigCanvas.width = bigCanvas.height = 1024;
+  drawBigRangoli(bigCanvas.getContext('2d')!, 1024);
+
   return {
+    paving: toTexture(pavingCanvas, true),
+    lipai: toTexture(lipaiCanvas, true),
+    bigRangoli: toTexture(bigCanvas, false),
     plaster: toTexture(plasterCanvas, true),
     earth: toTexture(earthCanvas, true),
     tiles: toTexture(tilesCanvas, true),
@@ -53,6 +81,8 @@ export function makeTextures(): {
 export function tile(tex: THREE.CanvasTexture, rx: number, ry: number): THREE.CanvasTexture {
   const t = tex.clone();
   t.repeat.set(rx, ry);
+  // Sharp at grazing angles: the ground is seen almost edge-on, so the flags must not smear (clamped to the GPU max).
+  t.anisotropy = 8;
   t.needsUpdate = true;
   return t;
 }
@@ -369,4 +399,112 @@ function drawRangoli(ctx: CanvasRenderingContext2D, size: number): void {
   ctx.arc(c, c, SOLID(18), 0, TAU);
   ctx.fillStyle = MARIGOLD;
   ctx.fill();
+}
+
+/** Lipai floor: warm ochre with broad soft mottling and fine swirls, light enough to read at night. */
+function makeLipaiShade(): (u: number, v: number) => Rgb {
+  const mottle = fbm(4, 101, 4);
+  const fine = fbm(48, 103, 3);
+  return (u, v) => {
+    const k = (0.86 + 0.28 * mottle(u, v)) * (0.94 + 0.12 * fine(u, v));
+    return [214 * k, 160 * k, 102 * k];
+  };
+}
+
+/**
+ * Laid flagstone paving: rows of 3 stones with alternate rows half-shifted, each in its own ochre, rose or sand tone,
+ * with a speckle and a lighter bevel on the upper-left edges. Every stone is drawn at the wrap offsets so the tile repeats seamlessly.
+ */
+function drawPaving(ctx: CanvasRenderingContext2D, size: number, seed: number): void {
+  const r = rng(seed);
+  const COLS = 3;
+  const ROWS = 4;
+  const w = size / COLS;
+  const h = size / ROWS;
+  // Warm terracotta and salmon sandstone, as on the ghat walkways.
+  const tones: Rgb[] = [
+    [218, 132, 98],
+    [202, 112, 86],
+    [230, 156, 116],
+    [192, 102, 80],
+    [222, 144, 104],
+  ];
+  // Mortar first, so the gaps between stones show a dark warm brown.
+  ctx.fillStyle = '#5a3022';
+  ctx.fillRect(0, 0, size, size);
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const t = tones[Math.floor(r() * tones.length)];
+      const k = 0.9 + 0.18 * r();
+      const x0 = col * w + (row % 2 ? w / 2 : 0);
+      const y0 = row * h;
+      for (const dx of [-size, 0, size]) {
+        const x = x0 + dx + 3;
+        const y = y0 + 3;
+        ctx.fillStyle = `rgb(${(t[0] * k) | 0},${(t[1] * k) | 0},${(t[2] * k) | 0})`;
+        ctx.fillRect(x, y, w - 6, h - 6);
+        // Bevel: a pale edge along the top and left, a dark edge along the bottom and right.
+        ctx.fillStyle = 'rgba(255,240,210,0.28)';
+        ctx.fillRect(x, y, w - 6, 3);
+        ctx.fillRect(x, y, 3, h - 6);
+        ctx.fillStyle = 'rgba(70,40,20,0.25)';
+        ctx.fillRect(x, y + h - 9, w - 6, 3);
+        ctx.fillRect(x + w - 9, y, 3, h - 6);
+        // Speckle across the stone face.
+        for (let i = 0; i < 40; i++) {
+          ctx.fillStyle = r() < 0.5 ? 'rgba(255,235,200,0.22)' : 'rgba(80,50,30,0.2)';
+          ctx.fillRect(x + r() * (w - 8), y + r() * (h - 8), 2, 2);
+        }
+      }
+    }
+  }
+}
+
+/** Big courtyard rangoli: a backdrop disc, the classic design shrunk inside, and an outer ring of lotus petals and dots. */
+function drawBigRangoli(ctx: CanvasRenderingContext2D, size: number): void {
+  const c = size / 2;
+  const scale = size / 1024;
+  // Backdrop: a cream-and-saffron disc so the vivid colours sit on a light ground, not on the paving.
+  ctx.beginPath();
+  ctx.arc(c, c, 505 * scale, 0, TAU);
+  ctx.fillStyle = '#f6e2b8';
+  ctx.fill();
+  // Outer lotus petals, alternating magenta, royal blue and saffron, with a white dot between each.
+  const fills = ['#c2185b', '#2a4fc0', '#ff8a1a'];
+  const N = 24;
+  for (let i = 0; i < N; i++) {
+    ctx.save();
+    ctx.translate(c, c);
+    ctx.rotate((i * TAU) / N);
+    ctx.beginPath();
+    ctx.ellipse(0, -430 * scale, 40 * scale, 78 * scale, 0, 0, TAU);
+    ctx.fillStyle = fills[i % 3];
+    ctx.fill();
+    ctx.lineWidth = 4 * scale;
+    ctx.strokeStyle = '#4a1a10';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, -500 * scale, 8 * scale, 0, TAU);
+    ctx.fillStyle = '#fffaf0';
+    ctx.fill();
+    ctx.restore();
+  }
+  // A green band and a thin red ring separate the petals from the inner design.
+  ctx.beginPath();
+  ctx.arc(c, c, 345 * scale, 0, TAU);
+  ctx.strokeStyle = '#2f8a4a';
+  ctx.lineWidth = 14 * scale;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(c, c, 322 * scale, 0, TAU);
+  ctx.strokeStyle = '#b8322a';
+  ctx.lineWidth = 6 * scale;
+  ctx.stroke();
+  // The eight-fold rangoli, scaled down about the centre.
+  ctx.save();
+  ctx.translate(c, c);
+  ctx.scale(0.62, 0.62);
+  ctx.translate(-c, -c);
+  drawRangoli(ctx, size);
+  ctx.restore();
 }
