@@ -40,12 +40,19 @@ interface Span {
 }
 
 /** Lime-and-geru plaster material; `rx` repeats the texture along the wall's length. */
-export function plasterMaterial(tex: Textures, rx: number): THREE.MeshStandardMaterial {
+export function plasterMaterial(
+  tex: Textures,
+  rx: number,
+  color = 0xfff0dc,
+  gradient = false,
+): THREE.MeshStandardMaterial {
   const map = tile(tex.plaster, rx, 1);
   return new THREE.MeshStandardMaterial({
     map,
-    // A warm lime-wash tint over the texture, plus a self-lit copy of it, so walls glow in the festive light.
-    color: 0xfff0dc,
+    // `gradient` reads the vertex colours jitteredBox bakes in: warm uplight at the foot, cool sky tone at the top.
+    vertexColors: gradient,
+    // The wall paint over the texture, plus a faint self-lit copy of it, so walls stay coloured not milky.
+    color,
     emissive: 0xffb878,
     emissiveMap: map,
     emissiveIntensity: 0.12,
@@ -113,8 +120,23 @@ export function jitteredBox(
     );
   }
   g.computeVertexNormals();
+  // Baked uplighting: warm orange at the foot of the wall fading to a cool violet-blue toward the top.
+  const cols = new Float32Array(p.count * 3);
+  const warm = new THREE.Color(1.0, 0.78, 0.55);
+  const cool = new THREE.Color(0.78, 0.8, 1.0);
+  const c = new THREE.Color();
+  for (let i = 0; i < p.count; i++) {
+    const t = THREE.MathUtils.clamp((p.getY(i) + h / 2) / Math.max(h, 0.01), 0, 1);
+    c.copy(warm).lerp(cool, Math.min(1, t * 1.2));
+    cols.set([c.r, c.g, c.b], i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   return new THREE.Mesh(g, mat);
 }
+
+/** Wall paints cycled along the boundary: cream, lavender, teal and ochre, so the courtyard is not one flat colour. */
+const WALL_PAINT = [0xfff0dc, 0xd8c8f4, 0xa8e0dc, 0xffe09a];
+let wallIdx = 0;
 
 /** Adds one plaster wall piece; full-height pieces get a lime coping cap along their top. */
 function addWall(scene: THREE.Scene, tex: Textures, s: Span, coping: boolean): void {
@@ -126,7 +148,8 @@ function addWall(scene: THREE.Scene, tex: Textures, s: Span, coping: boolean): v
     6,
     Math.max(1, Math.round(d / 0.5)),
   ];
-  const mat = plasterMaterial(tex, Math.max(w, d) / 2.4);
+  const paint = WALL_PAINT[wallIdx++ % WALL_PAINT.length];
+  const mat = plasterMaterial(tex, Math.max(w, d) / 2.4, paint, true);
   const mesh = jitteredBox(w, h, d, segs, mat);
   mesh.position.set((s.minX + s.maxX) / 2, (s.minY + s.maxY) / 2, (s.minZ + s.maxZ) / 2);
   scene.add(mesh);
@@ -146,7 +169,7 @@ function addWall(scene: THREE.Scene, tex: Textures, s: Span, coping: boolean): v
       scene.add(strip);
     }
     // Coping overlaps the wall top slightly so a jittered top never shows a gap.
-    const cap = new THREE.Mesh(new THREE.BoxGeometry(w + 0.1, 0.1, d + 0.1), mat);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(w + 0.1, 0.1, d + 0.1), plasterMaterial(tex, 1, 0xfff6e6));
     cap.position.set((s.minX + s.maxX) / 2, s.maxY + 0.03, (s.minZ + s.maxZ) / 2);
     scene.add(cap);
   }

@@ -1,6 +1,7 @@
 // Builds the village house on the north side of the aangan: a plastered body under a sloped
-// khaprail roof, a verandah on wooden posts, a double door with brass rings, shuttered windows with
-// a warm glow, a marigold toran over the door, shubh-labh lettering and a rangoli on the threshold.
+// khaprail roof, a verandah on wooden posts, a double door with brass rings, arched windows filled with amber light,
+// jharokha balconies, cornices and painted bands, a marigold toran, fairy lights on the eave, shubh-labh lettering and a
+// rangoli on the threshold. The lavender facade is washed with baked warm-to-cool vertex colour instead of real lights.
 import * as THREE from 'three';
 import { PALETTE } from '../core/palette';
 import type { CollisionWorld } from '../core/Collision';
@@ -26,6 +27,13 @@ const VERANDAH_FRONT_Z = -7;
 const POST_Z = -7.15;
 export const POST_X = [-5.5, -3, -1.4, 1.4, 3, 5.5];
 const WINDOW_X = [-4.6, 4.6];
+/** X of the two jharokha balconies. */
+const JHAROKHA_X = [-7, 7];
+/** Lavender facade paint and cream trim: the Varanasi-ghat palette, with geru and ochre bands added below. */
+const BODY_PAINT = 0xa592e8;
+const TRIM = 0xfff1d6;
+/** Warm amber light behind every pane: unlit basic colour, below the bloom threshold so it stays crisp. */
+const AMBER = new THREE.Color(1.0, 0.6, 0.2);
 const DOOR_TOP = 2.35;
 /** Roof profile in the z/y plane: front eave, ridge, back eave. */
 const EAVE = { z: -6.8, y: 2.6 };
@@ -68,6 +76,9 @@ export function buildHouse(scene: THREE.Scene, world: CollisionWorld, tex: Textu
   for (const x of WINDOW_X) buildWindow(scene, tex, x);
   buildToran(scene);
   buildDecals(scene, tex);
+  buildDetails(scene, tex);
+  for (const x of JHAROKHA_X) buildJharokha(scene, tex, x);
+  buildEaveLights(scene);
 
   return {
     doorPosition: new THREE.Vector3(0, VERANDAH_H, FRONT_Z),
@@ -81,13 +92,13 @@ export function buildHouse(scene: THREE.Scene, world: CollisionWorld, tex: Textu
 function buildBody(scene: THREE.Scene, world: CollisionWorld, tex: Textures): void {
   const w = HALF_W * 2;
   const d = FRONT_Z - BACK_Z;
-  const body = jitteredBox(w, WALL_H, d, [36, 6, 4], plasterMaterial(tex, w / 2.4));
+  const body = jitteredBox(w, WALL_H, d, [36, 6, 4], plasterMaterial(tex, w / 2.4, BODY_PAINT, true));
   body.position.set(0, WALL_H / 2, (FRONT_Z + BACK_Z) / 2);
   scene.add(body);
   world.addBox({ minX: -HALF_W, maxX: HALF_W, minZ: BACK_Z, maxZ: FRONT_Z });
 
   // The front pitch sits above the wall top, so a plaster infill closes the triangle under it.
-  const infillMat = plasterMaterial(tex, w / 2.4);
+  const infillMat = plasterMaterial(tex, w / 2.4, BODY_PAINT);
   const frontTop = roofY(FRONT_Z + 0.15) - 0.03;
   const front = new THREE.Mesh(new THREE.BoxGeometry(w, frontTop - 3.1, 0.3), infillMat);
   front.position.set(0, (3.1 + frontTop) / 2, FRONT_Z);
@@ -184,7 +195,7 @@ function buildRoof(scene: THREE.Scene, tex: Textures): void {
   );
 
   // Gable triangles close the side ends between the wall tops and the roof planes.
-  const gableMat = plasterMaterial(tex, 1);
+  const gableMat = plasterMaterial(tex, 1, BODY_PAINT);
   gableMat.side = THREE.DoubleSide;
   for (const s of [-1, 1]) {
     const x = s * (HALF_W + 0.02);
@@ -236,43 +247,64 @@ function buildDoor(scene: THREE.Scene, tex: Textures): void {
   }
 }
 
-/** Two small shuttered windows with a warm interior glow plane and half-open shutters. */
+/** Arch-topped outline of width `w` and height `h`, centred on the origin; used for panes, frames and niches. */
+function archShape(w: number, h: number): THREE.Shape {
+  const r = w / 2;
+  const s = new THREE.Shape();
+  s.moveTo(-r, -h / 2);
+  s.lineTo(r, -h / 2);
+  s.lineTo(r, h / 2 - r);
+  s.absarc(0, h / 2 - r, r, 0, Math.PI, false);
+  s.lineTo(-r, -h / 2);
+  return s;
+}
+
+/** Shared amber pane material: unlit, so every window and niche stays crisp and costs no lights. */
+const amberMat = new THREE.MeshBasicMaterial({ color: AMBER, side: THREE.DoubleSide });
+
+/** Box strip helper for trim: size, centre and material in one call. */
+function strip(
+  parent: THREE.Object3D,
+  mat: THREE.Material,
+  w: number,
+  h: number,
+  d: number,
+  x: number,
+  y: number,
+  z: number,
+): THREE.Mesh {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z);
+  parent.add(m);
+  return m;
+}
+
+/** Arched window: amber pane, a cream arched frame behind it, a cross of dark mullions, a sill and a lintel cap. */
 function buildWindow(scene: THREE.Scene, tex: Textures, cx: number): void {
   const y = 1.85;
   // Everything on the window sits FACE_CLEARANCE proud of the jittered front wall.
   const z = FRONT_Z + FACE_CLEARANCE;
-  const frameMat = woodMaterial(tex, 1, 1);
+  const trim = new THREE.MeshStandardMaterial({ color: TRIM, roughness: 0.85, metalness: 0 });
+  const woodDark = woodMaterial(tex, 1, 1, 0x7a4a2a);
 
-  // Warm glow from inside; emissive so it reads as lit without adding a light.
-  const glow = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.82, 0.72),
-    new THREE.MeshStandardMaterial({
-      color: 0x2a1608,
-      emissive: PALETTE.flame,
-      emissiveIntensity: 0.6,
-      roughness: 0.9,
-      metalness: 0,
-    }),
-  );
-  glow.position.set(cx, y, z);
-  scene.add(glow);
+  // Cream frame, slightly larger than the pane, then the amber pane in front of it.
+  const frame = new THREE.Mesh(new THREE.ShapeGeometry(archShape(0.98, 1.1)), trim);
+  frame.position.set(cx, y, z + 0.005);
+  scene.add(frame);
+  const pane = new THREE.Mesh(new THREE.ShapeGeometry(archShape(0.8, 0.94)), amberMat);
+  pane.position.set(cx, y, z + 0.012);
+  scene.add(pane);
+  // Mullions: one vertical and one horizontal bar across the glass.
+  strip(scene, woodDark, 0.035, 0.94, 0.02, cx, y, z + 0.025);
+  strip(scene, woodDark, 0.8, 0.035, 0.02, cx, y - 0.1, z + 0.025);
+  // Projecting sill and a lintel cap over the arch.
+  strip(scene, trim, 1.2, 0.07, 0.2, cx, y - 0.58, z + 0.08);
+  strip(scene, trim, 1.1, 0.06, 0.12, cx, y + 0.6, z + 0.05);
 
-  // Four frame strips around the glow.
-  const strips: [number, number, number, number, number][] = [
-    [0.9, 0.06, cx, y + 0.37, z + 0.02],
-    [0.9, 0.06, cx, y - 0.37, z + 0.02],
-    [0.06, 0.8, cx - 0.42, y, z + 0.02],
-    [0.06, 0.8, cx + 0.42, y, z + 0.02],
-  ];
-  for (const [w, h, x, sy, sz] of strips) {
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.04), frameMat);
-    strip.position.set(x, sy, sz);
-    scene.add(strip);
-  }
-
-  // Shutters hinged at the window edges, swung out to show they are left ajar.
-  shutter(scene, frameMat, cx - 0.45, 1, -0.95, y, z + 0.03);
-  shutter(scene, frameMat, cx + 0.45, -1, 0.95, y, z + 0.03);
+  // Shutters hinged at the window edges, swung out to show they are left ajar, painted teal.
+  const shutterMat = new THREE.MeshStandardMaterial({ color: 0x1f8a8a, roughness: 0.85, metalness: 0 });
+  shutter(scene, shutterMat, cx - 0.5, 1, -0.95, y, z + 0.03);
+  shutter(scene, shutterMat, cx + 0.5, -1, 0.95, y, z + 0.03);
 }
 
 /** One shutter leaf pivoting at its hinge; `side` is +1 when the leaf extends toward +x. */
@@ -398,3 +430,134 @@ function buildDecals(scene: THREE.Scene, tex: Textures): void {
   scene.add(rangoli);
 }
 
+
+/** Cornices, painted bands, door surround, amber door cracks and arched niches across the front facade. */
+function buildDetails(scene: THREE.Scene, tex: Textures): void {
+  const z = FRONT_Z;
+  const trim = new THREE.MeshStandardMaterial({ color: TRIM, roughness: 0.85, metalness: 0 });
+  const geru = new THREE.MeshStandardMaterial({ color: PALETTE.geru, emissive: PALETTE.geru, emissiveIntensity: 0.15, roughness: 0.85 });
+  const ochre = new THREE.MeshStandardMaterial({ color: 0xe8a020, emissive: 0xc07010, emissiveIntensity: 0.15, roughness: 0.85 });
+  const wood = woodMaterial(tex, 1, 1, 0x7a4a2a);
+  const W = HALF_W * 2;
+
+  // Cornice: a deep cream ledge under the roof line with a thinner drip strip below it.
+  strip(scene, trim, W + 0.3, 0.14, 0.34, 0, 2.92, z + 0.12);
+  strip(scene, trim, W + 0.2, 0.05, 0.2, 0, 2.8, z + 0.07);
+  // Painted bands: geru dado near the floor and an ochre stripe above it, split around the door.
+  for (const s of [-1, 1]) {
+    strip(scene, geru, 8, 0.14, 0.05, s * 5, 0.58, z + 0.03);
+    strip(scene, ochre, 8, 0.08, 0.05, s * 5, 0.76, z + 0.03);
+  }
+  // Frieze under the cornice: ochre with a thin geru line.
+  strip(scene, ochre, W, 0.1, 0.05, 0, 2.7, z + 0.03);
+  strip(scene, geru, W, 0.05, 0.05, 0, 2.62, z + 0.03);
+
+  // Projecting wooden beam ends (rafter tails) along the cornice, as one instanced mesh.
+  const beams = new THREE.InstancedMesh(new THREE.BoxGeometry(0.1, 0.1, 0.28), wood, 36);
+  const m = new THREE.Matrix4();
+  for (let i = 0; i < 36; i++) {
+    m.makeTranslation(-8.75 + i * 0.5, 2.74, z + 0.2);
+    beams.setMatrixAt(i, m);
+  }
+  beams.instanceMatrix.needsUpdate = true;
+  scene.add(beams);
+
+  // Door surround: cream pilasters, a lintel and a geru cap above it.
+  for (const s of [-1, 1]) {
+    strip(scene, trim, 0.14, DOOR_TOP - VERANDAH_H + 0.1, 0.1, s * 1.02, (DOOR_TOP + VERANDAH_H) / 2, z + 0.06);
+  }
+  strip(scene, trim, 2.3, 0.12, 0.14, 0, DOOR_TOP + 0.08, z + 0.07);
+  strip(scene, geru, 2.1, 0.05, 0.16, 0, DOOR_TOP + 0.17, z + 0.07);
+  // Lamplight leaking round the double door: a lit crack at the meeting stiles and a glow under the sill.
+  strip(scene, amberMat, 0.03, DOOR_TOP - VERANDAH_H - 0.1, 0.02, 0, (DOOR_TOP + VERANDAH_H) / 2 - 0.05, z + 0.105);
+  strip(scene, amberMat, 1.7, 0.025, 0.02, 0, VERANDAH_H + 0.02, z + 0.1);
+
+  // Arched niches above the shubh-labh lettering, each with a little diya flame.
+  const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 1.7, 0.6) });
+  for (const x of [-2.4, 2.4]) {
+    const frame = new THREE.Mesh(new THREE.ShapeGeometry(archShape(0.5, 0.62)), trim);
+    frame.position.set(x, 2.15, z + 0.04);
+    scene.add(frame);
+    const niche = new THREE.Mesh(new THREE.ShapeGeometry(archShape(0.38, 0.5)), amberMat);
+    niche.position.set(x, 2.14, z + 0.048);
+    scene.add(niche);
+    const flame = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), flameMat);
+    flame.position.set(x, 1.98, z + 0.07);
+    scene.add(flame);
+  }
+}
+
+/** Jharokha: a projecting balcony on corbels with a lit arched opening, side panes and a small chhatri dome. */
+function buildJharokha(scene: THREE.Scene, tex: Textures, cx: number): void {
+  const g = new THREE.Group();
+  g.position.set(cx, 0, FRONT_Z);
+  scene.add(g);
+  const trim = new THREE.MeshStandardMaterial({ color: TRIM, roughness: 0.85, metalness: 0 });
+  const geru = new THREE.MeshStandardMaterial({ color: PALETTE.geru, emissive: PALETTE.geru, emissiveIntensity: 0.15, roughness: 0.85 });
+  const wood = woodMaterial(tex, 1, 1, 0x7a4a2a);
+  const D = 0.62;
+
+  // Floor slab with a geru edge, carried on three tapered corbels.
+  strip(g, trim, 1.5, 0.1, D + 0.1, 0, 1.35, D / 2);
+  strip(g, geru, 1.52, 0.04, D + 0.12, 0, 1.3, D / 2);
+  for (const x of [-0.55, 0, 0.55]) {
+    const corbel = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.34, 4), wood);
+    corbel.rotation.set(Math.PI, Math.PI / 4, 0);
+    corbel.position.set(x, 1.15, 0.15);
+    g.add(corbel);
+  }
+  // Pillars at the front corners and a cream lintel carrying the dome.
+  for (const x of [-0.7, 0.7]) strip(g, trim, 0.1, 0.95, 0.1, x, 1.88, D);
+  strip(g, trim, 1.5, 0.1, D + 0.1, 0, 2.38, D / 2);
+  // Front arched opening, lit amber from inside, and two small side panes.
+  const arch = new THREE.Mesh(new THREE.ShapeGeometry(archShape(1.1, 0.88)), amberMat);
+  arch.position.set(0, 1.86, D - 0.02);
+  g.add(arch);
+  strip(g, wood, 0.03, 0.86, 0.02, 0, 1.86, D - 0.005);
+  for (const s of [-1, 1]) {
+    const side = new THREE.Mesh(new THREE.PlaneGeometry(D - 0.2, 0.7), amberMat);
+    side.rotation.y = (s * Math.PI) / 2;
+    side.position.set(s * 0.69, 1.86, D / 2);
+    g.add(side);
+  }
+  // Glow on the wall behind the balcony.
+  const back = new THREE.Mesh(new THREE.ShapeGeometry(archShape(1.0, 0.85)), amberMat);
+  back.position.set(0, 1.86, FACE_CLEARANCE + 0.01);
+  g.add(back);
+  // Chhatri dome, a geru ring and a brass finial.
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.62, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2), trim);
+  dome.scale.set(1.1, 0.55, 0.55);
+  dome.position.set(0, 2.43, D / 2);
+  g.add(dome);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.025, 6, 18), geru);
+  ring.rotation.x = Math.PI / 2;
+  ring.position.set(0, 2.45, D / 2);
+  ring.scale.set(1.7, 1.1, 1);
+  g.add(ring);
+  const finial = new THREE.Mesh(
+    new THREE.SphereGeometry(0.045, 8, 6),
+    new THREE.MeshStandardMaterial({ color: PALETTE.brass, metalness: 0.8, roughness: 0.35 }),
+  );
+  finial.position.set(0, 2.78, D / 2);
+  g.add(finial);
+}
+
+/** Fairy-light string along the front eave: small coloured bulbs on a gentle sag between hooks, one InstancedMesh. */
+function buildEaveLights(scene: THREE.Scene): void {
+  const COUNT = 48;
+  const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.04, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), COUNT);
+  const palette = [0xffc04a, 0xff5a7a, 0x4cd47a, 0x6ab0ff, 0xfff0d0].map((h) => new THREE.Color(h).multiplyScalar(1.4));
+  const m = new THREE.Matrix4();
+  for (let i = 0; i < COUNT; i++) {
+    const t = i / (COUNT - 1);
+    const x = (t - 0.5) * ROOF_HALF_W * 2;
+    // The sag repeats every 1.6 m so the wire looks hung between hooks.
+    const sag = 0.1 * Math.sin((((x + ROOF_HALF_W) % 1.6) / 1.6) * Math.PI);
+    m.makeTranslation(x, EAVE.y - 0.1 - sag, EAVE.z + 0.04);
+    bulbs.setMatrixAt(i, m);
+    bulbs.setColorAt(i, palette[i % palette.length]);
+  }
+  bulbs.instanceMatrix.needsUpdate = true;
+  if (bulbs.instanceColor) bulbs.instanceColor.needsUpdate = true;
+  scene.add(bulbs);
+}
