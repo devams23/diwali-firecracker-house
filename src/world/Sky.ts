@@ -47,10 +47,10 @@ const CUE_MIN = 2.2;
 const CUE_RANGE = 2.8;
 /** Chance that a cue fires a second rocket at once, for a pair. */
 const SALVO_CHANCE = 0.3;
-/** Dome gradient stops: a magenta-rose horizon, a violet middle and a deep blue zenith. */
-const HORIZON = 0xd2557e;
-const MID = 0x5b2fa0;
-const ZENITH = 0x0c1f66;
+/** Dome gradient stops: a warm violet-magenta horizon glow, a rich indigo-violet middle and a deep violet zenith. */
+const HORIZON = 0x7a3a70;
+const MID = 0x2a1450;
+const ZENITH = 0x120a28;
 /** Colour of the warm glow band that lies low on the horizon, where the whole village lamplight rises. */
 const GLOW = 0xffa050;
 /** Burst colours: gold, saffron, red, green and white, muted so distant bursts read as far away, not neon. */
@@ -109,11 +109,11 @@ const DOME_FRAG = /* glsl */ `
   varying vec3 vDir;
   void main() {
     float y = max(vDir.y, 0.0);
-    // Three stops: saffron-rose at the horizon, indigo mid-sky, then the dark zenith.
-    vec3 col = mix(uHorizon, uMid, smoothstep(0.0, 0.3, y));
-    col = mix(col, uZenith, smoothstep(0.25, 0.7, y));
-    // A warm band low on the horizon, so the whole village reads as lamp-lit under the sky.
-    col += uGlow * 0.4 * exp(-y * y * 40.0);
+    // Three stops: magenta-violet at the horizon, deep violet mid-sky, then the near-black violet zenith.
+    vec3 col = mix(uHorizon, uMid, smoothstep(0.0, 0.32, y));
+    col = mix(col, uZenith, smoothstep(0.25, 0.75, y));
+    // A faint orange hint right at the horizon, where the village lamplight rises.
+    col += uGlow * 0.22 * exp(-y * y * 120.0);
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -303,7 +303,7 @@ export class Sky implements Updatable {
       pos.set([(x / len) * STAR_R, (y / len) * STAR_R, (z / len) * STAR_R], i * 3);
       // Most stars are cool white; a minority lean warm like the village lamps.
       const warm = r() < 0.2 ? 1 : 0;
-      const k = 0.75 + 0.5 * r();
+      const k = 0.6 + 0.45 * r();
       col.set([k, k * (warm ? 0.85 : 0.94), k * (warm ? 0.6 : 1)], i * 3);
       size[i] = 0.9 + r() * 1.4;
       phase[i] = r() * Math.PI * 2;
