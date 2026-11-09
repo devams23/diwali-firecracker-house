@@ -1,11 +1,11 @@
-// Classical background music: a real sitar-and-tabla raga recording looping softly and endlessly under the village
-// sounds. The track is Ranjit Makkuni's Raga Kaushi Kanra with Mithilesh Jha on tabla, from Wikimedia Commons
-// (CC BY-SA 3.0, credited in the README), loudness-matched and re-encoded to MP3 in public/audio with no fades.
-// Two players take turns: shortly before one reaches the end, the other starts from the top and the two crossfade,
-// so the tabla never stops, dips or pauses. It feeds the master bus, so the game's mute toggle silences it too.
+// Classical background music: a soothing sitar recording looping softly and endlessly under the village sounds.
+// The track is the first eight minutes of "Sitar For Scattered Thoughts" (an Indian meditation piece the owner chose),
+// loudness-matched and re-encoded to MP3 in public/audio with no fades. Two players take turns: shortly before one
+// reaches the end, the other starts from the top and the two crossfade, so the music never stops, dips or pauses.
+// It feeds the master bus, so the game's mute toggle silences it too.
 
 /** The looping recording, relative to the site base. */
-const TRACK = 'audio/raga-kaushi-kanra.mp3';
+const TRACK = 'audio/sitar-meditation.mp3';
 /** Music level on the master bus: low and soothing, so it reads as background. */
 const MUSIC_GAIN = 0.4;
 /** Seconds for the music to fade in when it first starts. */
@@ -43,17 +43,19 @@ export function startClassicalBed(ctx: AudioContext, out: AudioNode): void {
   level.connect(out);
 
   /** Builds one player wired into the filter, silent until it is given a turn. */
-  const makeVoice = (): Voice => {
+  // `preload` is 'auto' for the first player and 'metadata' for the second, so the MP3 is downloaded once at start;
+  // by the first loop point the browser has it cached for the second player.
+  const makeVoice = (preload: 'auto' | 'metadata'): Voice => {
     const el = new Audio(import.meta.env.BASE_URL + TRACK);
     el.crossOrigin = 'anonymous';
-    el.preload = 'auto';
+    el.preload = preload;
     const gain = ctx.createGain();
     gain.gain.value = 0;
     ctx.createMediaElementSource(el).connect(gain);
     gain.connect(soften);
     return { el, gain };
   };
-  const voices = [makeVoice(), makeVoice()];
+  const voices = [makeVoice('auto'), makeVoice('metadata')];
   let active = 0;
 
   /** Ramps its gain linearly to `to` over `secs`. */

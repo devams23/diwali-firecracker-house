@@ -83,7 +83,7 @@ cracker 3 m ahead), `lightAll()`, `teleport(x, z, yaw, pitch)` and `state()`. No
 
 ## Credits
 
-- **Background music:** Ranjit Makkuni (sitar) with Mithilesh Jha (tabla): Raga Kaushi Kanra, from Wikimedia
-  Commons under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/)
-  ([source](https://commons.wikimedia.org/wiki/File:RanjitMakkuniRagaKaushiKanra.ogg)). The recording was trimmed,
-  loudness-matched and re-encoded to MP3; this adapted file is shared under the same licence.
+- **Background music:** the first eight minutes of "Sitar For Scattered Thoughts | Indian Meditation Music For
+  Sharp Mind", supplied by the project owner for personal use; check its licence before any public release.
+  Earlier builds used Ranjit Makkuni's Raga Kaushi Kanra (sitar, with Mithilesh Jha on tabla) from Wikimedia Commons
+  under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
