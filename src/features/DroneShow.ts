@@ -27,8 +27,11 @@ const STAGGER_SECONDS = 0.9;
 /** Seconds the flock takes to fade in at the start and out at the end. */
 const FADE_IN = 1.5;
 const FADE_OUT = 2.5;
-/** Centre of the show: high over the village, straight ahead of a player who stands in the courtyard facing the house. */
-const CENTRE = new THREE.Vector3(0, 72, -100);
+/**
+ * Centre of the show: high over the village, straight ahead of a player who stands in the courtyard facing the house.
+ * Raised so the verandah eave hides less of it; the countdown pill also asks the player to step back and look up.
+ */
+const CENTRE = new THREE.Vector3(0, 80, -100);
 /** Height of the ground-level start and landing positions, metres. */
 const GROUND_Y = 2;
 

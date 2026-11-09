@@ -9,7 +9,8 @@ export function droneBannerText(state: DroneState, lit: number, total: number, c
     case 'waiting':
       return `🪔 Light all ${total} diyas to start the drone show · ${lit}/${total}`;
     case 'countdown':
-      return `🪔 Drone show starting in ${count}…`;
+      // The show rises over the house roof, so remind the player to step out from under the eave.
+      return `🪔 Drone show starting in ${count}… step back into the courtyard and look up`;
     case 'live':
       return 'Drone show · LIVE';
     default:
