@@ -331,8 +331,8 @@ export function buildAangan(
     world.addBox({ minX: s.minX, maxX: s.maxX, minZ: s.minZ, maxZ: s.maxZ });
   }
 
-  // Gate: two tall pillars carry a lintel over a 1.6 m opening. The opening stays visibly open; a blocker across
-  // its depth, starting 0.1 m inside the courtyard face, keeps the player in the courtyard.
+  // Gate: two tall pillars carry a lintel over a 1.6 m opening. The opening stays open and walkable, with
+  // the two leaves swung back out of the way.
   const gateMat = woodMaterial(tex, 1.5, 1);
   for (const side of [-1, 1]) {
     const x0 = side * GATE_HALF;
@@ -352,7 +352,7 @@ export function buildAangan(
   );
   addGateLeaf(scene, gateMat, -GATE_HALF, 1, -1.2);
   addGateLeaf(scene, gateMat, GATE_HALF, -1, 1.2);
-  world.addBox({ minX: -GATE_HALF, maxX: GATE_HALF, minZ: SOUTH_INNER_Z + 0.1, maxZ: OUTER_Z });
+  // The opening is deliberately left clear of collision: the leaves are swung back, so the player can walk out.
 
   // Pilasters along the boundary carry the jhalar swags and the lanterns; each wears a glowing finial.
   const postMat = plasterMaterial(tex, 1);

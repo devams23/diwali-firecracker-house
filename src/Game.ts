@@ -227,7 +227,7 @@ export class Game {
     this.engine.add(this.sky);
     this.engine.add(new Festoons(scene));
     // The neighbouring village beyond the low boundary wall: houses, lanes, lamps and eave lights.
-    this.engine.add(new Village(scene));
+    this.engine.add(new Village(scene, world));
     // Distant lit hills, temple and clouds ringing the horizon.
     this.engine.add(new Hills(scene));
     // Paper akash kandils hang under the verandah eave and glow through the bloom pass.

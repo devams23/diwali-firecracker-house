@@ -30,9 +30,9 @@ interface Layer {
 
 /** Back to front: the far layer is the palest and tallest, so each nearer ridge reads darker against it. */
 const LAYERS: Layer[] = [
-  { radius: 245, base: 46, swing: 20, top: 0x8a60b8, bottom: 0xd070a0, lights: 160, seed: 11 },
-  { radius: 200, base: 34, swing: 15, top: 0x5a3c9c, bottom: 0x9a58a8, lights: 220, seed: 23 },
-  { radius: 158, base: 22, swing: 11, top: 0x32267c, bottom: 0x62409a, lights: 260, seed: 37 },
+  { radius: 245, base: 46, swing: 20, top: 0x8a60b8, bottom: 0x8a4c86, lights: 160, seed: 11 },
+  { radius: 200, base: 34, swing: 15, top: 0x5a3c9c, bottom: 0x7a4890, lights: 220, seed: 23 },
+  { radius: 158, base: 22, swing: 11, top: 0x32267c, bottom: 0x56388c, lights: 260, seed: 37 },
 ];
 /** Azimuth of the temple, radians from north toward east: left of the aangan's first view, beside the moon. */
 const TEMPLE_AZIMUTH = -0.42;
@@ -199,7 +199,7 @@ function cloudTexture(): THREE.CanvasTexture {
     ctx.globalCompositeOperation = 'source-atop';
     const shade = ctx.createLinearGradient(0, 40, 0, 170);
     shade.addColorStop(0, 'rgb(150,110,210)');
-    shade.addColorStop(0.55, 'rgb(240,130,170)');
+    shade.addColorStop(0.55, 'rgb(210,125,160)');
     shade.addColorStop(1, 'rgb(255,170,90)');
     ctx.fillStyle = shade;
     ctx.fillRect(0, 0, 512, 192);

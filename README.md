@@ -77,15 +77,13 @@ cracker 3 m ahead), `lightAll()`, `teleport(x, z, yaw, pitch)` and `state()`. No
 - **Procedural assets:** the village models, textures and sound effects are generated in code. The only shipped
   media are the hand model and the background music (see Credits).
 - **Audio:** sound effects are synthesised with the Web Audio API (oscillators and noise buffers). The background
-  music is a playlist of three MP3s in `public/audio/`, played softly through a lowpass on the same master bus.
+  music is one MP3 in `public/audio/`, looped endlessly by two crossfading players through a soft lowpass.
 - **Screenshots:** `screenshots/` holds the frames the Playwright run captures (`hands.png`, `aangan.png`,
   `burst.png`, `sky.png`). They are regenerated on each run.
 
 ## Credits
 
-- **Background music:** Ranjit Makkuni (sitar) with Mithilesh Jha (tabla): Raga Kaushi Kanra, Raga Bag Bhim and
-  Raga Sri, from Wikimedia Commons under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
-  Sources: [Kaushi Kanra](https://commons.wikimedia.org/wiki/File:RanjitMakkuniRagaKaushiKanra.ogg),
-  [Bag Bhim](https://commons.wikimedia.org/wiki/File:RanjitMakkuniRagaBagBhim.ogg),
-  [Sri](https://commons.wikimedia.org/wiki/File:RagaSri_,_Ranjit_Makkuni.ogg). The recordings were loudness-
-  matched, given short fades and re-encoded to MP3; these adapted files are shared under the same licence.
+- **Background music:** Ranjit Makkuni (sitar) with Mithilesh Jha (tabla): Raga Kaushi Kanra, from Wikimedia
+  Commons under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/)
+  ([source](https://commons.wikimedia.org/wiki/File:RanjitMakkuniRagaKaushiKanra.ogg)). The recording was trimmed,
+  loudness-matched and re-encoded to MP3; this adapted file is shared under the same licence.
