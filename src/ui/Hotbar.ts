@@ -68,7 +68,8 @@ export class Hotbar {
       this.slots.push({ el, count, shown: -1, selected: false });
     });
 
-    this.root.append(name, row);
+    // The selected name sits under the slots, as in the reference.
+    this.root.append(row, name);
     parent.appendChild(this.root);
   }
 
