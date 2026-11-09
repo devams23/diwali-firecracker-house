@@ -212,7 +212,7 @@
   color: rgba(244, 230, 204, 0.3);
 }
 
-/* ---------- Prompt chip ---------- */
+/* ---------- Prompt pill (just above the hotbar) ---------- */
 
 .prompt {
   position: fixed;
@@ -221,44 +221,109 @@
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 10px;
-  max-width: min(88vw, 520px);
-  padding: 8px 16px 8px 10px;
+  gap: 12px;
+  max-width: min(92vw, 620px);
+  padding: 8px 20px 8px 10px;
   border-radius: 999px;
-  background: var(--ui-chip);
-  border: 1px solid var(--ui-hairline);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  background: rgba(22, 13, 8, 0.82);
+  border: 1px solid rgba(214, 168, 74, 0.7);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.25);
   transition: opacity 0.12s ease;
 }
 
-/* Cross-fade: the chip is dimmed while its words are swapped (Prompt.set), then brought back. */
+/* A pill with no keycap (Step back!, Restock) needs even padding on the left. */
+.prompt:has(.keycap[hidden]) {
+  padding-left: 20px;
+}
+
+/* Cross-fade: the pill is dimmed while its words are swapped (Prompt.set), then brought back. */
 .prompt.is-changing {
   opacity: 0;
 }
 
+/* A white rounded keycap with dark text, used by the prompt pill and the controls legend. */
 .keycap {
   display: inline-block;
-  min-width: 26px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--ui-hairline);
-  background: linear-gradient(#5a3b24, #3b2514);
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.35);
+  min-width: 28px;
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: linear-gradient(#ffffff, #ece4d4);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.22), 0 1px 3px rgba(0, 0, 0, 0.5);
   font-family: var(--ui-sans);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
   text-align: center;
-  color: var(--ui-ink);
+  color: #2a1a0e;
 }
 
 .prompt-text {
   font-family: var(--ui-serif);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--ui-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+
+/* ---------- Controls legend (bottom left) ---------- */
+
+.legend {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(22, 13, 8, 0.72);
+  border: 1px solid var(--ui-hairline);
+  font-family: var(--ui-sans);
+  font-size: 13px;
+  font-weight: 500;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  transition: opacity 0.6s ease;
+}
+
+.legend-list {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 5px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend-list li,
+.legend-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ui-ink);
+}
+
+.legend .keycap {
+  font-size: 11px;
+  padding: 1px 7px;
+  min-width: 22px;
+  border-radius: 6px;
+}
+
+/* Collapsed: only the "H controls" chip, dimmed; open: only the list. */
+.legend:not(.is-open) .legend-list {
+  display: none;
+}
+
+.legend.is-open .legend-chip {
+  display: none;
+}
+
+.legend:not(.is-open) {
+  padding: 5px 10px;
+  opacity: 0.55;
 }
 
 /* ---------- Toast (top centre) ---------- */
@@ -401,6 +466,9 @@
   }
   .prompt-text {
     font-size: 16px;
+  }
+  .legend {
+    display: none;
   }
 }
 

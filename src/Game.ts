@@ -11,7 +11,7 @@ import { events } from './core/events';
 import { FirstPersonController } from './player/FirstPersonController';
 import { Hands } from './player/Hands';
 import { pickAimed, type AimHit, type Interactable } from './player/Interaction';
-import { nextHint, type PlayerState } from './player/PlayerState';
+import { contextPrompt, type PlayerState } from './player/PlayerState';
 import { makeTextures } from './world/textures';
 import { buildAangan } from './world/Aangan';
 import { buildHouse } from './world/House';
@@ -40,7 +40,8 @@ import { HandHeld } from './crackers/HandHeld';
 import { CRACKERS, type CrackerKind } from './crackers/catalog';
 import { AIM_MAX, placementFor, placementPoint } from './crackers/placement';
 import { Intro } from './ui/Intro';
-import { Prompt } from './ui/Prompt';
+import { ControlsLegend } from './ui/Controls';
+import { Prompt, parsePrompt } from './ui/Prompt';
 import { Hotbar } from './ui/Hotbar';
 import { Crosshair } from './ui/Crosshair';
 import { Highlighter } from './ui/Highlight';
@@ -149,11 +150,18 @@ export class Game {
     placedUnlit: 0,
     burstCount: 0,
     diyasLit: 0,
+    selectedHindi: '',
+    selectedHandheld: false,
+    selectedLantern: false,
+    heldName: '',
+    heldUnlit: false,
   };
   private readonly farQueue: FarBang[] = [];
   private readonly finaleCounter = new FinaleCounter();
   private readonly intro: Intro;
   private readonly prompt: Prompt;
+  /** Corner controls legend, open for the first minute then a toggleable H chip. */
+  private readonly legend: ControlsLegend;
   private readonly pause: Pause;
   private readonly finale: Finale;
   private readonly toast: Toast;
@@ -285,6 +293,7 @@ export class Game {
     this.toast = new Toast(uiEl);
     this.hotbar = new Hotbar(uiEl);
     this.prompt = new Prompt(uiEl);
+    this.legend = new ControlsLegend(uiEl);
     this.crosshair = new Crosshair(uiEl);
     // Diya row: lit one by one with the agarbatti; the last one sets off a golden celebration and a greeting.
     this.diyaCounter = new DiyaCounter(uiEl, DIYA_COUNT);
@@ -465,6 +474,11 @@ export class Game {
     s.placedUnlit = this.crackers.unlitCount;
     s.burstCount = this.finaleCounter.count;
     s.diyasLit = this.diyaRow.lit;
+    s.selectedHindi = CRACKERS[sel].hindi;
+    s.selectedHandheld = CRACKERS[sel].handheld;
+    s.selectedLantern = sel === 'kandil';
+    s.heldName = this.leftHeld ? CRACKERS[this.leftHeld.kind].label : '';
+    s.heldUnlit = this.leftHeld !== null && this.leftHeld.timer.phase === 'idle';
     this.hotbar.update(this.inventory);
   }
 
@@ -494,6 +508,8 @@ export class Game {
   /** Shows the crosshair and the target highlight for this frame's focus, and hides them while play is not live. */
   private updateAim(): void {
     this.crosshair.show(this.started && !this.paused);
+    this.legend.show(this.started && !this.paused);
+    this.legend.update(this.clockTime, this.finaleCounter.count);
     this.diyaCounter.show(this.started && !this.paused);
     this.highlighter.set(this.focus ? this.focus.root : null);
     this.crosshair.setTarget(this.focus ? this.focus.label(this.state) : null);
@@ -552,6 +568,7 @@ export class Game {
     const wheel = this.input.wheel();
     if (wheel !== 0) this.inventory.cycle(wheel > 0 ? 1 : -1);
     if (this.input.pressed('KeyM')) this.toggleSound();
+    if (this.input.pressed('KeyH')) this.legend.toggle();
     if (this.input.clicked()) this.onClick(t);
   }
 
@@ -719,12 +736,16 @@ export class Game {
     this.player.pitch = pitch;
   }
 
-  /** Chooses the prompt: the "Step back!" warning after a light, otherwise the next onboarding hint. */
+  /**
+   * Chooses the pill above the hotbar. An aimed target wins (its label already starts with its key, e.g.
+   * "Click — light the fuse"); otherwise the contextual prompt gives the key for the selected cracker.
+   */
   private updatePrompt(t: number): void {
-    let text = '';
-    if (this.started && !this.paused) {
-      text = t < this.stepBackUntil ? 'Step back!' : nextHint(this.state);
+    if (!this.started || this.paused) {
+      this.prompt.set(null);
+      return;
     }
-    this.prompt.set(text);
+    const aimed = this.focus ? this.focus.label(this.state) : null;
+    this.prompt.set(aimed ? parsePrompt(aimed) : contextPrompt(this.state, t < this.stepBackUntil));
   }
 }

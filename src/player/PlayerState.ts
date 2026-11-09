@@ -17,6 +17,43 @@ export interface PlayerState {
   burstCount: number;
   /** Lamps of the verandah diya row lit so far; while it is zero the first hint invites the player to light them. */
   diyasLit: number;
+  /** Devanagari name of the selected cracker, shown beside the English one in the place prompt. */
+  selectedHindi: string;
+  /** True when the selected kind is held in the left hand (phuljhadi, pencil) rather than set on the ground. */
+  selectedHandheld: boolean;
+  /** True when the selected kind is the Akash Kandil sky lantern, which is released rather than placed. */
+  selectedLantern: boolean;
+  /** English name of the cracker in the left hand, or '' when the hand is empty. */
+  heldName: string;
+  /** True while the cracker in the left hand has not been lit yet. */
+  heldUnlit: boolean;
+}
+
+/** One contextual action prompt: an optional key shown as a keycap and the text after it. */
+export interface ActionPrompt {
+  /** Keycap label ("F", "E", "Click"), or null for a prompt with no key. */
+  key: string | null;
+  /** The words after the keycap. */
+  text: string;
+}
+
+/**
+ * The prompt for the pill above the hotbar when nothing is aimed at: the next action and the key that does it.
+ * `stepBack` is true for the few seconds after a light. Pure, so every branch can be tested.
+ */
+export function contextPrompt(s: PlayerState, stepBack: boolean): ActionPrompt {
+  if (stepBack) return { key: null, text: 'Step back!' };
+  if (s.placedUnlit > 0) return { key: 'Click', text: 'Light the fuse' };
+  if (s.heldUnlit) return { key: 'Click', text: `Light the ${s.heldName.toLowerCase()}` };
+  if (s.diyasLit === 0) return { key: null, text: 'Light the diyas on the verandah — aim and click · दीप जलाइए' };
+  if (s.selectedCount === 0) return { key: null, text: 'Restock at the stall' };
+  if (s.selectedLantern) return { key: 'F', text: 'Release a sky lantern' };
+  if (s.selectedHandheld) {
+    return s.heldName
+      ? { key: null, text: `Enjoy the ${s.heldName.toLowerCase()}` }
+      : { key: 'F', text: `Hold ${s.selectedName}` };
+  }
+  return { key: 'F', text: `Place ${s.selectedName} · ${s.selectedHindi}` };
 }
 
 /**

@@ -1,5 +1,5 @@
-// Bottom-centre prompt chip: a warm translucent brown pill with a gold hairline, a keycap for a leading key
-// token (E, F, Q or Click) and the text after it. Text changes cross-fade. parsePrompt is pure so the keycap
+// Prompt pill just above the hotbar: a dark translucent pill with a gold hairline, a white keycap for the key to
+// press (E, F, Q or Click) and the action text after it. Text changes cross-fade. parsePrompt is pure so the keycap
 // split can be tested under Node without the DOM.
 
 /** A prompt split into its leading key token (if any) and the rest of the text. */
@@ -22,15 +22,16 @@ export function parsePrompt(text: string): ParsedPrompt {
   return m ? { key: m[1], text: m[2] } : { key: null, text };
 }
 
-/** The on-screen prompt chip; set() changes its text with a short cross-fade and ignores repeats. */
+/** The on-screen prompt pill; set() changes its key and words with a short cross-fade and ignores repeats. */
 export class Prompt {
   private readonly el: HTMLDivElement;
   private readonly keyEl: HTMLSpanElement;
   private readonly textEl: HTMLSpanElement;
+  /** Signature (key + text) of what is shown, to skip repeats. */
   private current = '';
   private swapTimer = 0;
 
-  /** Builds the chip inside `parent`, hidden until the first prompt is set. */
+  /** Builds the pill inside `parent`, hidden until the first prompt is set. */
   constructor(parent: HTMLElement) {
     this.el = document.createElement('div');
     this.el.className = 'prompt is-changing';
@@ -44,26 +45,26 @@ export class Prompt {
   }
 
   /**
-   * Shows `text` as the prompt; does nothing when it is already shown. Empty text hides the chip entirely, so no
-   * empty pill is left on screen (for example while paused).
+   * Shows the prompt (a keycap when it has a key, then the words); does nothing when it is already shown. A null or
+   * empty prompt hides the pill entirely, so no empty pill is left on screen (for example while paused).
    */
-  set(text: string): void {
-    if (text === this.current) return;
-    this.current = text;
+  set(p: ParsedPrompt | null): void {
+    const sig = p && p.text !== '' ? `${p.key ?? ''}|${p.text}` : '';
+    if (sig === this.current) return;
+    this.current = sig;
     window.clearTimeout(this.swapTimer);
-    if (text === '') {
+    if (!p || sig === '') {
       this.el.hidden = true;
       this.el.classList.add('is-changing');
       return;
     }
     this.el.hidden = false;
     this.el.classList.add('is-changing');
-    // Swap the words while the chip is faded out, then fade it back in.
+    // Swap the words while the pill is faded out, then fade it back in.
     this.swapTimer = window.setTimeout(() => {
-      const parsed = parsePrompt(text);
-      this.keyEl.textContent = parsed.key ?? '';
-      this.keyEl.hidden = parsed.key === null;
-      this.textEl.textContent = parsed.text;
+      this.keyEl.textContent = p.key ?? '';
+      this.keyEl.hidden = p.key === null;
+      this.textEl.textContent = p.text;
       this.el.classList.remove('is-changing');
     }, 120);
   }
