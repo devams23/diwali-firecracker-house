@@ -19,13 +19,13 @@ const LAMP_SPACING = 8;
 /** Lamp post height, in metres. */
 const LAMP_H = 3.2;
 /** Wall paints for the houses: indigo-blue, teal, turmeric yellow, rose-pink, geru red and lavender. */
-const WALL_COLORS = [0x4a5cc8, 0x1fa6a0, 0xf0b428, 0xe8708c, 0xc4482c, 0xa88ce0];
+const WALL_COLORS = [0x4a5cc8, 0x1fa6a0, 0xf0b428, 0xe8708c, 0xc4482c, 0xa88ce0, 0x2a4fd0, 0x6a78a8];
 /** Roof tints: terracotta tiles and a few dark slate ones. */
 const ROOF_COLORS = [0xb85a3a, 0xa8482e, 0xc8683c, 0x6a4a52];
 /** Eave fairy light colours: gold, saffron, rose, green, white. */
 const FAIRY = [0xffc04a, 0xff8a1a, 0xff4a6a, 0x4cd47a, 0xfff0d0].map((h) => new THREE.Color(h).multiplyScalar(1.3));
 /** Warm window glow, above 1 so the bloom picks it up. */
-const WINDOW_GLOW = new THREE.Color(1.0, 0.62, 0.22);
+const WINDOW_GLOW = new THREE.Color(1.0, 0.81, 0.42);
 /** Cream trim for cornices and sills. */
 const TRIM = 0xfff1d6;
 
@@ -54,7 +54,7 @@ function houseLayout(): House[] {
   const add = (x: number, z: number, yaw: number): void => {
     // Skip a spot that would sit on a lane or crowd a house already placed (the east rows and south rows meet).
     if (onLane(x, z) || out.some((o) => Math.hypot(o.x - x, o.z - z) < 9)) return;
-    out.push({ x, z, w: 6 + r() * 3, d: 5 + r() * 2, h: 3 + r() * 1.4, yaw });
+    out.push({ x, z, w: 6 + r() * 3, d: 5 + r() * 2, h: 5.6 + r() * 3, yaw });
   };
   // East and west: two rows facing the lane, fronts turned toward the courtyard.
   for (const side of [-1, 1]) {
@@ -149,11 +149,14 @@ export class Village implements Updatable {
       houses.length,
     );
     const windowMat = new THREE.MeshBasicMaterial({ color: WINDOW_GLOW });
-    const windows = new THREE.InstancedMesh(archGeometry(0.9, 1.2), windowMat, houses.length * 3);
+    const windows = new THREE.InstancedMesh(archGeometry(0.9, 1.2), windowMat, houses.length * 9);
     // Cornice and plinth trim: one cream box per house, slightly larger than the body, plus a sill strip per window.
-    const trims = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: TRIM, roughness: 0.9 }), houses.length * 3);
+    const trims = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: TRIM, roughness: 0.9 }), houses.length * 5);
     let ti = 0;
-    const sills = new THREE.InstancedMesh(new THREE.BoxGeometry(1.2, 0.08, 0.2), new THREE.MeshStandardMaterial({ color: TRIM, roughness: 0.9 }), houses.length * 3);
+    const sills = new THREE.InstancedMesh(new THREE.BoxGeometry(1.2, 0.08, 0.2), new THREE.MeshStandardMaterial({ color: TRIM, roughness: 0.9 }), houses.length * 9);
+    // Brown wooden beam ends projecting under each floor's ledge.
+    const beams = new THREE.InstancedMesh(new THREE.BoxGeometry(0.12, 0.12, 0.3), new THREE.MeshStandardMaterial({ color: 0x6a4228, roughness: 0.9 }), houses.length * 40);
+    let bi = 0;
     let wi = 0;
     const c = new THREE.Color();
     const p = new THREE.Vector3();
@@ -175,23 +178,38 @@ export class Village implements Updatable {
       // Local frame: front is +z, right is +x; world = rotateY(yaw) * local.
       const fwd = new THREE.Vector3(Math.sin(h.yaw), 0, Math.cos(h.yaw));
       const right = new THREE.Vector3(Math.cos(h.yaw), 0, -Math.sin(h.yaw));
-      // Two or three lit windows on the front face.
+      // Storeys of about 2.8 m: each has a row of arched windows (lit amber, a few left dark), a sill, a cream ledge and
+      // a row of wooden beam ends beneath it.
+      const floors = Math.max(2, Math.round(h.h / 2.8));
+      const fh = h.h / floors;
       const n = 2 + (r() < 0.5 ? 1 : 0);
-      for (let k = 0; k < n; k++) {
-        const u = ((k + 0.5) / n - 0.5) * h.w * 0.75;
-        p.set(h.x, h.h * 0.55, h.z).addScaledVector(fwd, h.d / 2 + 0.03).addScaledVector(right, u);
-        m.compose(p, q, s.set(1, 1, 1));
-        windows.setMatrixAt(wi, m);
-        // Sill under the window, standing proud of the wall.
-        const sp = p.clone().addScaledVector(fwd, 0.08);
-        sp.y -= 0.65;
-        sills.setMatrixAt(wi++, m.compose(sp, q, s.set(1, 1, 1)));
+      for (let f = 0; f < floors; f++) {
+        for (let k = 0; k < n; k++) {
+          const u = ((k + 0.5) / n - 0.5) * h.w * 0.75;
+          p.set(h.x, f * fh + fh * 0.5, h.z).addScaledVector(fwd, h.d / 2 + 0.03).addScaledVector(right, u);
+          m.compose(p, q, s.set(1, 1, 1));
+          windows.setMatrixAt(wi, m);
+          // About one pane in five is dark: nobody home.
+          windows.setColorAt(wi, r() < 0.2 ? c.setRGB(0.1, 0.08, 0.16) : c.setRGB(1, 1, 1));
+          // Sill under the window, standing proud of the wall.
+          const sp = p.clone().addScaledVector(fwd, 0.08);
+          sp.y -= 0.65;
+          sills.setMatrixAt(wi++, m.compose(sp, q, s.set(1, 1, 1)));
+        }
+        // Ledge across the whole house at the top of this storey (the cornice for the last one).
+        p.set(h.x, (f + 1) * fh - 0.1, h.z);
+        trims.setMatrixAt(ti++, m.compose(p, q, s.set(h.w + 0.3, 0.2, h.d + 0.3)));
+        // Beam ends under the ledge on the front face.
+        const nb = Math.min(15, Math.floor(h.w / 0.6));
+        for (let k = 0; k < nb; k++) {
+          const u = ((k + 0.5) / nb - 0.5) * (h.w - 0.4);
+          p.set(h.x, (f + 1) * fh - 0.3, h.z).addScaledVector(fwd, h.d / 2 + 0.1).addScaledVector(right, u);
+          beams.setMatrixAt(bi++, m.compose(p, q, s.set(1, 1, 1)));
+        }
       }
-      // Cornice under the roof, a cream band across all four sides, and a plinth band at the foot.
-      for (const [by, bh, grow] of [[h.h - 0.12, 0.24, 0.3], [0.2, 0.4, 0.12]] as const) {
-        p.set(h.x, by, h.z);
-        trims.setMatrixAt(ti++, m.compose(p, q, s.set(h.w + grow, bh, h.d + grow)));
-      }
+      // Plinth band at the foot.
+      p.set(h.x, 0.2, h.z);
+      trims.setMatrixAt(ti++, m.compose(p, q, s.set(h.w + 0.12, 0.4, h.d + 0.12)));
       // Fairy lights along the front eave, a bulb every 0.45 m, colours cycling.
       const bulbs = Math.floor(h.w / 0.45);
       for (let k = 0; k <= bulbs; k++) {
@@ -200,18 +218,20 @@ export class Village implements Updatable {
         const pos = new THREE.Vector3(h.x, h.h - 0.2 - sag, h.z)
           .addScaledVector(fwd, h.d / 2 + 0.12)
           .addScaledVector(right, u);
-        dots.push({ pos, color: FAIRY[(k + i) % FAIRY.length], size: 0.28 });
+        dots.push({ pos, color: FAIRY[(k + i) % FAIRY.length], size: 0.15 });
       }
     });
     windows.count = wi;
     sills.count = wi;
     trims.count = ti;
-    for (const mesh of [bodies, roofs, windows, trims, sills]) {
+    beams.count = bi;
+    for (const mesh of [bodies, roofs, windows, trims, sills, beams]) {
       mesh.instanceMatrix.needsUpdate = true;
       mesh.frustumCulled = false;
       scene.add(mesh);
     }
     if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
+    if (windows.instanceColor) windows.instanceColor.needsUpdate = true;
     if (roofs.instanceColor) roofs.instanceColor.needsUpdate = true;
 
     this.buildLanes(scene, dots, tex);

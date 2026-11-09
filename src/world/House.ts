@@ -33,7 +33,7 @@ const JHAROKHA_X = [-7, 7];
 const BODY_PAINT = 0xa592e8;
 const TRIM = 0xfff1d6;
 /** Warm amber light behind every pane: unlit basic colour, below the bloom threshold so it stays crisp. */
-const AMBER = new THREE.Color(1.0, 0.6, 0.2);
+const AMBER = new THREE.Color(1.0, 0.81, 0.42);
 const DOOR_TOP = 2.35;
 /** Roof profile in the z/y plane: front eave, ridge, back eave. */
 const EAVE = { z: -6.8, y: 2.6 };
