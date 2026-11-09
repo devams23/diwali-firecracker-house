@@ -104,6 +104,12 @@ const FINALE_HEIGHT_RANGE = 25;
 /** Seconds between the lane fountains the neighbours light during the finale, as a base and a random extra. */
 const FOUNTAIN_GAP_MIN = 1.2;
 const FOUNTAIN_GAP_RANGE = 1.5;
+/** Seconds between the neighbours' occasional shells during normal play, as a base and a random extra. */
+const AMBIENT_GAP_MIN = 2.5;
+const AMBIENT_GAP_RANGE = 4;
+/** Seconds between the neighbours' occasional lane anars during normal play, as a base and a random extra. */
+const AMBIENT_FOUNTAIN_MIN = 8;
+const AMBIENT_FOUNTAIN_RANGE = 8;
 const TAU = Math.PI * 2;
 /** Shared zero vector used as the spawn point for hand-held sparklers, which are attached to the hand at once. */
 const ORIGIN = new THREE.Vector3();
@@ -690,7 +696,10 @@ export class Game {
 
   /** Fires the neighbours' bursts while the finale runs, at random intervals and places. */
   private updateFinale(dt: number): void {
-    if (this.finaleTime <= 0) return;
+    if (this.finaleTime <= 0) {
+      this.updateAmbientShow(dt);
+      return;
+    }
     this.finaleTime -= dt;
     this.nextShowIn -= dt;
     this.nextFountainIn -= dt;
@@ -702,6 +711,24 @@ export class Game {
     if (this.nextShowIn <= 0) {
       this.neighbourBurst();
       this.nextShowIn = FINALE_GAP_MIN + Math.random() * FINALE_GAP_RANGE;
+    }
+  }
+
+  /**
+   * Outside the finale the neighbours still celebrate, only sparingly: a shell every few seconds and now and then an
+   * anar on a lane, so the sky and streets feel alive while the player plays. Paused or before the intro, nothing fires.
+   */
+  private updateAmbientShow(dt: number): void {
+    if (!this.started || this.paused) return;
+    this.nextShowIn -= dt;
+    this.nextFountainIn -= dt;
+    if (this.nextShowIn <= 0) {
+      this.neighbourBurst();
+      this.nextShowIn = AMBIENT_GAP_MIN + Math.random() * AMBIENT_GAP_RANGE;
+    }
+    if (this.nextFountainIn <= 0) {
+      startFountain(this.fx, pickLanePoint(Math.random, this.fountainAt));
+      this.nextFountainIn = AMBIENT_FOUNTAIN_MIN + Math.random() * AMBIENT_FOUNTAIN_RANGE;
     }
   }
 
