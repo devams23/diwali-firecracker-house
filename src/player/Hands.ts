@@ -17,7 +17,7 @@ const HAND_URL = { right: 'models/hands/right.glb', left: 'models/hands/left.glb
 /** Centre of the cut wrist end of the right-hand mesh, in mesh space (the left mesh is its x mirror). */
 const MESH_WRIST = new THREE.Vector3(0.039, 0.074, 0.01);
 /** Uniform scale of the real hand mesh; sized so the hand fills about a fifth of the screen height. */
-const MESH_SCALE = 1.75;
+const MESH_SCALE = 1.9;
 /** Per-joint curl of each finger in degrees [proximal, intermediate, distal], progressive from index to pinky. */
 const CURL: ReadonlyArray<readonly [string, number, number, number]> = [
   ['index', 70, 80, 60],
@@ -221,12 +221,16 @@ export class Hands implements Updatable {
 /** Builds the skin, silk, zari, gold and thread materials shared by both hands. */
 function handMaterials(): HandMaterials {
   return {
-    // Warm brown skin; the emissive keeps the fist from ever going dark in the blue night light.
-    skin: new THREE.MeshStandardMaterial({
-      color: 0xb07a55,
-      roughness: 0.6,
-      emissive: 0x3a1a0c,
-      emissiveIntensity: 0.25,
+    // Warm peach-tan skin with a soft velvet sheen at the edges, like light passing through skin. The warm emissive
+    // keeps the fist readable in the violet night light without looking flat.
+    skin: new THREE.MeshPhysicalMaterial({
+      color: 0xc98d62,
+      roughness: 0.55,
+      sheen: 0.6,
+      sheenRoughness: 0.5,
+      sheenColor: new THREE.Color(0xffb38a),
+      emissive: 0x4a2010,
+      emissiveIntensity: 0.3,
     }),
     // Deep maroon silk with a soft sheen at grazing angles, so the sleeve catches the light like cloth.
     kurta: new THREE.MeshPhysicalMaterial({
