@@ -20,6 +20,8 @@ const SOFTEN_HZ = 5200;
  * browsers only allow media to start playing after one. If the browser still refuses, it retries on the next click.
  */
 export function startClassicalBed(ctx: AudioContext, out: AudioNode): void {
+  // No media elements outside a browser (unit tests under Node, or a mocked context): stay silent.
+  if (typeof Audio === 'undefined' || typeof ctx.createMediaElementSource !== 'function') return;
   // One media element reused for every track, routed into the Web Audio graph.
   const el = new Audio();
   el.crossOrigin = 'anonymous';
