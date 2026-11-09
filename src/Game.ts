@@ -19,7 +19,7 @@ import { buildProps, extraDiyaSpots, type PropsResult } from './world/props';
 import { buildLighting } from './world/Lighting';
 import { Sky } from './world/Sky';
 import { Festoons } from './world/Festoons';
-import { Village } from './world/Village';
+import { Village, villageBounds } from './world/Village';
 import { Hills } from './world/Hills';
 import { Kandils, verandahKandilSpots, wallKandilSpots } from './world/Kandils';
 import { POST_X } from './world/House';
@@ -38,7 +38,7 @@ import { addPickProxy } from './crackers/pickProxy';
 import { createCracker } from './crackers/factory';
 import { HandHeld } from './crackers/HandHeld';
 import { CRACKERS, type CrackerKind } from './crackers/catalog';
-import { AIM_MAX, placementFor, placementPoint } from './crackers/placement';
+import { AIM_MAX, placementFor, placementPoint, setPlacementArea } from './crackers/placement';
 import { Intro } from './ui/Intro';
 import { ControlsLegend } from './ui/Controls';
 import { Prompt, parsePrompt } from './ui/Prompt';
@@ -228,6 +228,8 @@ export class Game {
     this.engine.add(new Festoons(scene));
     // The neighbouring village beyond the low boundary wall: houses, lanes, lamps and eave lights.
     this.engine.add(new Village(scene, world));
+    // Crackers may be set down anywhere in the walkable village, nudged clear of houses, walls and the kund.
+    setPlacementArea(villageBounds(), (x, z, r) => world.resolve(x, z, r));
     // Distant lit hills, temple and clouds ringing the horizon.
     this.engine.add(new Hills(scene));
     // Paper akash kandils hang under the verandah eave and glow through the bloom pass.
