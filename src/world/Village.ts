@@ -3,11 +3,12 @@
 // are instanced, and every glow is an emissive dot (see glowPoints.ts), so the whole village adds no real lights and
 // only a handful of draw calls.
 import * as THREE from 'three';
+import type { CollisionWorld } from '../core/Collision';
 import type { Updatable } from '../core/Engine';
 import { GlowField, type GlowDot } from './glowPoints';
 import { makeTextures, rng, tile, type Textures } from './textures';
 import { INNER_X, SOUTH_INNER_Z } from './Aangan';
-import { Kund } from './Kund';
+import { Kund, KUND_FOOTPRINT } from './Kund';
 
 /** Centre line of the lanes beside the courtyard: east and west at x = LANE_X, south at z = LANE_Z, north at z = -LANE_Z_N. */
 const LANE_X = INNER_X + 6;
@@ -31,7 +32,7 @@ const WINDOW_GLOW = new THREE.Color(1.0, 0.81, 0.42);
 const TRIM = 0xfff1d6;
 
 /** One neighbour house: centre on the ground, size, and the yaw that turns its front (local +z) to face the lane. */
-interface House {
+export interface House {
   x: number;
   z: number;
   w: number;
@@ -49,7 +50,7 @@ function onLane(x: number, z: number): boolean {
 }
 
 /** The houses, placed in two rows on each side of the courtyard, fronts toward the nearest lane. */
-function houseLayout(): House[] {
+export function houseLayout(): House[] {
   const r = rng(515);
   const out: House[] = [];
   const add = (x: number, z: number, yaw: number): void => {
@@ -76,6 +77,65 @@ function houseLayout(): House[] {
     add(x + 5 + (r() - 0.5) * 2, -LANE_Z_N - 19 - r() * 3, 0);
   }
   return out;
+}
+
+/** Lamp post positions: thin poles on the inner edge of each lane, skipping the gate's axis on the south and north lanes. */
+export function lampSpots(): THREE.Vector3[] {
+  const spots: THREE.Vector3[] = [];
+  for (let t = -40; t <= 45; t += LAMP_SPACING) {
+    spots.push(new THREE.Vector3(LANE_X - LANE_W / 2 - 0.3, 0, t), new THREE.Vector3(-LANE_X + LANE_W / 2 + 0.3, 0, t));
+  }
+  for (let t = -40; t <= 40; t += LAMP_SPACING) {
+    if (Math.abs(t) < 3) continue;
+    spots.push(new THREE.Vector3(t, 0, LANE_Z - LANE_W / 2 - 0.3), new THREE.Vector3(t, 0, -LANE_Z_N + LANE_W / 2 + 0.3));
+  }
+  return spots;
+}
+
+/** Extra metres added around each house footprint so the player never clips the eaves or plinth. */
+const HOUSE_MARGIN = 0.2;
+/** How far outside the outermost house the invisible fence stands, in metres. */
+const FENCE_MARGIN = 3;
+/** Thickness of each invisible fence slab (thick, so a fast step cannot skip over it). */
+const FENCE_T = 4;
+
+/** Ground rectangle (min/max x and z) the player may roam: the built-up village plus a small margin. */
+export function villageBounds(): { minX: number; maxX: number; minZ: number; maxZ: number } {
+  const b = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+  for (const h of houseLayout()) {
+    // A yaw of +-pi/2 swaps which side is the width; the footprint's half extents follow.
+    const turned = Math.abs(Math.sin(h.yaw)) > 0.5;
+    const hx = (turned ? h.d : h.w) / 2;
+    const hz = (turned ? h.w : h.d) / 2;
+    b.minX = Math.min(b.minX, h.x - hx);
+    b.maxX = Math.max(b.maxX, h.x + hx);
+    b.minZ = Math.min(b.minZ, h.z - hz);
+    b.maxZ = Math.max(b.maxZ, h.z + hz);
+  }
+  // The kund is not a house, but the fence must clear it too.
+  b.maxZ = Math.max(b.maxZ, KUND_FOOTPRINT.maxZ);
+  return { minX: b.minX - FENCE_MARGIN, maxX: b.maxX + FENCE_MARGIN, minZ: b.minZ - FENCE_MARGIN, maxZ: b.maxZ + FENCE_MARGIN };
+}
+
+/** Registers the village's solid parts: every house, the kund, the lamp posts and an invisible fence round the lot. */
+export function addVillageCollision(world: CollisionWorld): void {
+  // Houses: the rotated footprint, inflated a little.
+  for (const h of houseLayout()) {
+    const turned = Math.abs(Math.sin(h.yaw)) > 0.5;
+    const hx = (turned ? h.d : h.w) / 2 + HOUSE_MARGIN;
+    const hz = (turned ? h.w : h.d) / 2 + HOUSE_MARGIN;
+    world.addBox({ minX: h.x - hx, maxX: h.x + hx, minZ: h.z - hz, maxZ: h.z + hz });
+  }
+  // The whole ghat tank is blocked, so nobody walks through the steps or into the water.
+  world.addBox({ ...KUND_FOOTPRINT });
+  // Lamp posts are thin: a small circle each.
+  for (const p of lampSpots()) world.addCircle(p.x, p.z, 0.12);
+  // Four slabs outside the bounds; they overshoot at the corners so there are no gaps.
+  const f = villageBounds();
+  world.addBox({ minX: f.minX - FENCE_T, maxX: f.minX, minZ: f.minZ - FENCE_T, maxZ: f.maxZ + FENCE_T });
+  world.addBox({ minX: f.maxX, maxX: f.maxX + FENCE_T, minZ: f.minZ - FENCE_T, maxZ: f.maxZ + FENCE_T });
+  world.addBox({ minX: f.minX, maxX: f.maxX, minZ: f.minZ - FENCE_T, maxZ: f.minZ });
+  world.addBox({ minX: f.minX, maxX: f.maxX, minZ: f.maxZ, maxZ: f.maxZ + FENCE_T });
 }
 
 /** Unit box with baked uplight vertex colours: warm orange at the foot fading to cool violet at the top, so house walls look lit from below. */
@@ -130,8 +190,9 @@ export class Village implements Updatable {
   /** The ghat water tank beyond the south lane, seen down the gate's axis. */
   private readonly kund: Kund;
 
-  /** Builds houses, lanes and lights into the scene. */
-  constructor(scene: THREE.Scene) {
+  /** Builds houses, lanes and lights into the scene, and registers their collision in `world`. */
+  constructor(scene: THREE.Scene, world: CollisionWorld) {
+    addVillageCollision(world);
     // makeTextures is memoised, so this shares the canvases Game already built.
     const tex = makeTextures();
     const houses = houseLayout();
@@ -280,14 +341,7 @@ export class Village implements Updatable {
     scene.add(path);
 
     // Lamp posts: thin iron poles with a warm lamp head, on the inner edge of each lane.
-    const spots: THREE.Vector3[] = [];
-    for (let t = -40; t <= 45; t += LAMP_SPACING) {
-      spots.push(new THREE.Vector3(LANE_X - LANE_W / 2 - 0.3, 0, t), new THREE.Vector3(-LANE_X + LANE_W / 2 + 0.3, 0, t));
-    }
-    for (let t = -40; t <= 40; t += LAMP_SPACING) {
-      if (Math.abs(t) < 3) continue;
-      spots.push(new THREE.Vector3(t, 0, LANE_Z - LANE_W / 2 - 0.3), new THREE.Vector3(t, 0, -LANE_Z_N + LANE_W / 2 + 0.3));
-    }
+    const spots = lampSpots();
     const poles = new THREE.InstancedMesh(
       new THREE.CylinderGeometry(0.05, 0.07, LAMP_H, 6),
       new THREE.MeshStandardMaterial({ color: 0x2a2630, roughness: 0.7 }),

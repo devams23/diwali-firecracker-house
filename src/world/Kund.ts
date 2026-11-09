@@ -1,8 +1,8 @@
 // A ghat-style village water tank (kund) beyond the south wall, straight down the gate's axis so it is seen from the
 // courtyard. A broad flight of terracotta flagstone steps climbs to a raised landing and a still pool with a low
 // parapet; a row of small clay diyas burns along every step edge and the tank rim. The lamps are one InstancedMesh and
-// their flames are glow dots (see glowPoints.ts), so the whole thing adds no point lights. The player is fenced in the
-// courtyard, so the tank needs no collision.
+// their flames are glow dots (see glowPoints.ts), so the whole thing adds no point lights. Village.ts blocks the whole
+// footprint (KUND_FOOTPRINT) so the player cannot walk onto the steps or into the water.
 import * as THREE from 'three';
 import type { Updatable } from '../core/Engine';
 import { bowlGeometry, CLAY } from '../items/Diya';
@@ -31,6 +31,13 @@ const DIYA_GAP = 0.78;
 const DIYA_SCALE = 2.2;
 /** Height of a flame above the bowl base, in metres at the diya scale. */
 const FLAME_Y = 0.07 * DIYA_SCALE;
+/** Ground rectangle of the whole ghat (steps, landing and basin), used as its collision box. */
+export const KUND_FOOTPRINT = {
+  minX: -HALF_W,
+  maxX: HALF_W,
+  minZ: START_Z,
+  maxZ: START_Z + STEPS * TREAD + LANDING + BASIN,
+};
 /** Brick-red tint over the paving flags so the ghat reads warmer and browner than the lanes. */
 const STONE_TINT = 0xe6a888;
 /** Flame core and halo colours, above 1 so the bloom catches them. */
