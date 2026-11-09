@@ -53,4 +53,28 @@ describe('setPlacementArea', () => {
     expect(p.x).toBeLessThanOrEqual(20 - 0.3 + 1e-6);
     expect(p.z).toBeCloseTo(3, 6);
   });
+
+  it('keeps a spot aimed at the foot of a thin wall on the player side, not behind it', () => {
+    const world = new CollisionWorld();
+    // Thin wall from x 13.05 to 13.35, like the courtyard's east wall; the player stands west of it.
+    world.addBox({ minX: 13.05, maxX: 13.35, minZ: -10, maxZ: 10 });
+    setPlacementArea(
+      { minX: -46, maxX: 46, minZ: -44, maxZ: 47 },
+      (x, z, r) => world.resolve(x, z, r),
+      undefined,
+      (ax, az, bx, bz) => world.firstHit(ax, az, bx, bz),
+    );
+    // Aim lands at x 13.3, inside the wall and nearer its far face.
+    const p = clampPlacement(13.3, 0, { x: 11, z: 0 });
+    expect(p.x).toBeLessThanOrEqual(13.05 - 0.3 + 1e-6);
+  });
+});
+
+describe('CollisionWorld.firstHit', () => {
+  it('reports where a segment first enters a box, and 1 when clear', () => {
+    const world = new CollisionWorld();
+    world.addBox({ minX: 5, maxX: 6, minZ: -1, maxZ: 1 });
+    expect(world.firstHit(0, 0, 10, 0)).toBeCloseTo(0.5, 6);
+    expect(world.firstHit(0, 5, 10, 5)).toBe(1);
+  });
 });

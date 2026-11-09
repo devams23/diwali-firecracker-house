@@ -15,6 +15,9 @@ export interface PlacementArea {
 /** Pushes a circle at (x, z) of `radius` out of solid footprints; the game passes CollisionWorld.resolve. */
 export type SolidResolver = (x: number, z: number, radius: number) => { x: number; z: number };
 
+/** Fraction (0..1) along a ground segment at which it first meets a solid, 1 when clear; CollisionWorld.firstHit. */
+export type SightTest = (ax: number, az: number, bx: number, bz: number) => number;
+
 /** Clearance (m) kept between a cracker's centre and any wall or house face. */
 const CRACKER_CLEARANCE = 0.3;
 /** Margin (m) kept inside the area's edge, so crackers never sit on the invisible fence. */
@@ -24,11 +27,22 @@ const EDGE_MARGIN = 0.5;
 let area: PlacementArea = { minX: -8.6, maxX: 8.6, minZ: -6.6, maxZ: 6.6 };
 /** Current solid resolver, or null when nothing blocks placement (unit tests). */
 let solids: SolidResolver | null = null;
+/** Line-of-sight test, or null when nothing blocks the view (unit tests). */
+let sight: SightTest | null = null;
 
-/** Sets where crackers may be placed: the walkable village bounds and the solver that keeps them out of buildings. */
-export function setPlacementArea(bounds: PlacementArea, resolve: SolidResolver | null, margin = EDGE_MARGIN): void {
+/**
+ * Sets where crackers may be placed: the walkable village bounds, the solver that keeps them out of buildings and,
+ * optionally, the line-of-sight test that stops them being placed on the far side of a wall.
+ */
+export function setPlacementArea(
+  bounds: PlacementArea,
+  resolve: SolidResolver | null,
+  margin = EDGE_MARGIN,
+  firstHit: SightTest | null = null,
+): void {
   area = { minX: bounds.minX + margin, maxX: bounds.maxX - margin, minZ: bounds.minZ + margin, maxZ: bounds.maxZ - margin };
   solids = resolve;
+  sight = firstHit;
 }
 
 /** Distance ahead of the player at which a cracker is set down, in metres. */
@@ -38,13 +52,26 @@ export const AIM_MIN = 1;
 /** Furthest ground hit, along the aim ray, that a cracker may be placed at, in metres. */
 export const AIM_MAX = 3.5;
 
-/** Clamps a ground position into the placement area and, when a solver is set, out of every solid footprint. */
-export function clampPlacement(x: number, z: number): { x: number; z: number } {
+/**
+ * Clamps a ground position into the placement area and, when a solver is set, out of every solid footprint. When
+ * `from` (the player) is given, the spot is first pulled back to just short of the first wall between the player and
+ * it, so a cracker aimed at the foot of a wall lands on the player's side instead of being pushed out behind it.
+ */
+export function clampPlacement(x: number, z: number, from?: { x: number; z: number }): { x: number; z: number } {
   const inArea = (px: number, pz: number): { x: number; z: number } => ({
     x: Math.min(area.maxX, Math.max(area.minX, px)),
     z: Math.min(area.maxZ, Math.max(area.minZ, pz)),
   });
-  const c = inArea(x, z);
+  let c = inArea(x, z);
+  // Pull back in front of the first solid along the player's line of sight, keeping the clearance.
+  if (from && sight) {
+    const t = sight(from.x, from.z, c.x, c.z);
+    if (t < 1) {
+      const len = Math.hypot(c.x - from.x, c.z - from.z);
+      const keep = Math.max(0, t * len - CRACKER_CLEARANCE) / Math.max(len, 1e-6);
+      c = { x: from.x + (c.x - from.x) * keep, z: from.z + (c.z - from.z) * keep };
+    }
+  }
   // Nudge out of houses and walls, then re-clamp in case the nudge crossed the edge.
   if (!solids) return c;
   const free = solids(c.x, c.z, CRACKER_CLEARANCE);
@@ -60,7 +87,7 @@ export function aimedGroundSpot(eye: THREE.Vector3, look: THREE.Vector3): THREE.
   // Distance along the ray to the floor plane y = 0.
   const t = eye.y / -look.y;
   if (t < AIM_MIN || t > AIM_MAX) return null;
-  const c = clampPlacement(eye.x + look.x * t, eye.z + look.z * t);
+  const c = clampPlacement(eye.x + look.x * t, eye.z + look.z * t, eye);
   return new THREE.Vector3(c.x, 0, c.z);
 }
 
@@ -88,6 +115,6 @@ export function placementPoint(eye: THREE.Vector3, forward: THREE.Vector3, reach
     x += (fx / len) * reach;
     z += (fz / len) * reach;
   }
-  const c = clampPlacement(x, z);
+  const c = clampPlacement(x, z, eye);
   return new THREE.Vector3(c.x, 0, c.z);
 }

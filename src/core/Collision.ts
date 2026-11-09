@@ -61,6 +61,41 @@ export class CollisionWorld {
     return { x: px, z: pz };
   }
 
+  /**
+   * Fraction (0..1) along the segment from (ax, az) to (bx, bz) at which it first enters any box, or 1 when the
+   * path is clear. Boxes that already contain the start point are ignored. Slab test per box.
+   */
+  firstHit(ax: number, az: number, bx: number, bz: number): number {
+    const dx = bx - ax;
+    const dz = bz - az;
+    let best = 1;
+    for (const b of this.boxes) {
+      if (ax > b.minX && ax < b.maxX && az > b.minZ && az < b.maxZ) continue;
+      let t0 = 0;
+      let t1 = best;
+      // Clip the segment against the x slab, then the z slab; an empty interval means a miss.
+      const slabs: [number, number, number, number][] = [
+        [ax, dx, b.minX, b.maxX],
+        [az, dz, b.minZ, b.maxZ],
+      ];
+      let hit = true;
+      for (const [p, d, lo, hi] of slabs) {
+        if (Math.abs(d) < 1e-9) {
+          if (p < lo || p > hi) hit = false;
+          continue;
+        }
+        let ta = (lo - p) / d;
+        let tb = (hi - p) / d;
+        if (ta > tb) [ta, tb] = [tb, ta];
+        t0 = Math.max(t0, ta);
+        t1 = Math.min(t1, tb);
+        if (t0 > t1) hit = false;
+      }
+      if (hit && t0 < best) best = t0;
+    }
+    return best;
+  }
+
   /** Exit point for a centre inside `b`: nearest face first, skipping faces that land in another box. */
   private shortestClearExit(
     b: Box,
