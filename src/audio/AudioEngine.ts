@@ -1,6 +1,6 @@
 // Web Audio front end: creates one AudioContext on the first user gesture, routes every sound through a
 // master gain and compressor, places positional sounds with HRTF panners and keeps the listener on the camera.
-// Sound recipes live in recipes.ts, the village soundscape in Ambience.ts and the soft music in ClassicalBed.ts.
+// Sound recipes live in recipes.ts, the village soundscape in Ambience.ts and the raga playlist in ClassicalBed.ts.
 import * as THREE from 'three';
 import { RECIPES, type RecipeOpts } from './recipes';
 import { startAmbience as runAmbience } from './Ambience';
@@ -236,7 +236,7 @@ export class AudioEngine {
     g.setTargetAtTime(m ? 0 : MASTER_GAIN, t, 0.04);
   }
 
-  /** Starts the village night loops (crickets, crackle bed, booms, bell, dog) and the tanpura-and-bansuri music. Idempotent. */
+  /** Starts the village night loops (crickets, crackle bed, booms, bell, dog) and the sitar-and-tabla raga playlist. Idempotent. */
   startAmbience(): void {
     if (!this.ctx || !this.master || this.ambienceOn) return;
     this.ambienceOn = true;
