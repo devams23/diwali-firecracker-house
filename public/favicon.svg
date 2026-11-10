@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Diya favicon: a clay lamp with a glowing flame on a deep violet tile (matches the PNG icons). -->
+  <defs>
+    <radialGradient id="g" cx="50%" cy="38%" r="30%">
+      <stop offset="0" stop-color="#ffaa3c" stop-opacity=".6"/>
+      <stop offset="1" stop-color="#ffaa3c" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#2a1446"/>
+  <circle cx="256" cy="200" r="150" fill="url(#g)"/>
+  <!-- Flame: orange, gold, then a white core. -->
+  <path d="M256 92 C226 160 194 210 194 238 a62 62 0 0 0 124 0 C318 210 286 160 256 92Z" fill="#ff7828"/>
+  <path d="M256 140 C236 190 214 222 214 254 a42 42 0 0 0 84 0 C298 222 276 190 256 140Z" fill="#ffc446"/>
+  <path d="M256 196 C246 226 234 246 234 268 a22 22 0 0 0 44 0 C278 246 266 226 256 196Z" fill="#fff8dc"/>
+  <!-- Bowl with spout, rim and dots. -->
+  <path d="M330 312 L432 290 L372 350Z" fill="#d66228"/>
+  <path d="M86 330 A170 120 0 0 0 426 330Z" fill="#d66228"/>
+  <path d="M120 365 A136 65 0 0 0 392 365Z" fill="#b0421e"/>
+  <rect x="80" y="318" width="352" height="22" rx="11" fill="#ffc45a"/>
+  <circle cx="180" cy="381" r="9" fill="#ffd278"/>
+  <circle cx="256" cy="381" r="9" fill="#ffd278"/>
+  <circle cx="332" cy="381" r="9" fill="#ffd278"/>
+</svg>
