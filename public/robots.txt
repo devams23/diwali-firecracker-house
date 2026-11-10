@@ -1,0 +1,30 @@
+# Everyone is welcome: search engines and AI assistants alike may crawl and cite this game.
+User-agent: *
+Allow: /
+
+# AI crawlers, named explicitly so they know they are allowed.
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+Sitemap: https://diwali-firecracker-house.vercel.app/sitemap.xml

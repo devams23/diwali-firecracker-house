@@ -6,6 +6,10 @@ import { isSmallScreen, showSmallScreenCard } from './ui/SmallScreen';
 const app = document.getElementById('app')!;
 const ui = document.getElementById('ui')!;
 
+// The static "about" text in index.html is for search engines, AI crawlers and no-script visitors; once the script
+// runs, the game or the phone card takes the whole page, so remove it.
+document.getElementById('about')?.remove();
+
 if (isSmallScreen()) {
   showSmallScreenCard(app);
 } else {

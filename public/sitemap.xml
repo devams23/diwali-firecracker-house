@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- One-page site: the game itself, plus its share image and gameplay video for image and video search. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+        xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
+  <url>
+    <loc>https://diwali-firecracker-house.vercel.app/</loc>
+    <lastmod>2026-11-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://diwali-firecracker-house.vercel.app/og-image.jpg</image:loc>
+    </image:image>
+    <video:video>
+      <video:thumbnail_loc>https://diwali-firecracker-house.vercel.app/media/gameplay-poster.jpg</video:thumbnail_loc>
+      <video:title>Diwali Firecracker Game – gameplay</video:title>
+      <video:description>Lighting diyas, anars and rockets in a 3D Indian village, ending with a drone show and a fireworks finale.</video:description>
+      <video:content_loc>https://diwali-firecracker-house.vercel.app/media/gameplay.mp4</video:content_loc>
+      <video:duration>20</video:duration>
+    </video:video>
+  </url>
+</urlset>
